@@ -639,19 +639,10 @@ impl HerdrWindow {
                     .map(|agent| (None, agent))
                     .collect()
             };
+            let mut pending_header: Option<&str> = None;
             for (header, agent) in ordered {
                 if let Some(label) = header {
-                    agents = agents.child(
-                        div()
-                            .debug_selector(|| format!("agent-group-{label}"))
-                            .flex_none()
-                            .px(px(content_x))
-                            .pt(px(4.))
-                            .text_color(rgb(theme.muted))
-                            .truncate()
-                            .child(label_text(label)),
-                    );
-                    list_rows += 1;
+                    pending_header = Some(label);
                 }
                 let lines = if agents_custom {
                     let Some(lines) = tokens::agent_rows(
@@ -666,6 +657,28 @@ impl HerdrWindow {
                 } else {
                     Vec::new()
                 };
+                // Group headers add workspace text; skip them when custom rows
+                // resolve to the icon-only fallback so empty configs keep only
+                // the fallback. Pending keeps the label for a later visible
+                // agent in the same group; a new group's label overwrites it.
+                if let Some(label) = pending_header {
+                    let show = !agents_custom
+                        || lines.iter().flatten().any(|token| token.kind.text().is_some());
+                    if show {
+                        agents = agents.child(
+                            div()
+                                .debug_selector(|| format!("agent-group-{label}"))
+                                .flex_none()
+                                .px(px(content_x))
+                                .pt(px(4.))
+                                .text_color(rgb(theme.muted))
+                                .truncate()
+                                .child(label_text(label)),
+                        );
+                        list_rows += 1;
+                        pending_header = None;
+                    }
+                }
                 if selected && agent.focused {
                     highlighted[1] = Some(list_rows);
                 }
