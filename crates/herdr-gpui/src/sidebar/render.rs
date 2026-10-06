@@ -4,7 +4,7 @@
 
 use super::{
     DEVICE_FOOTER_HEIGHT, HOST_ARROW_WIDTH, HOST_GAP, STATUS_WIDTH, SidebarDrag, agent_name,
-    agents::{Indicators, agent_place, state_label, status_text},
+    agents::{Indicators, agent_place, group_agents_by_space, state_label, status_text},
     agents_sort,
     cell::{AgentRow, Cell, Fold, RowContext, RowData, RowState, WorkspaceRow, layout_for},
     label_text,
@@ -70,10 +70,12 @@ impl HerdrWindow {
         agents = agents.track_scroll(&self.sidebar_scroll[1]);
         let multi = self.endpoints.len() > 1;
         let mut agent_count = 0;
+        // Position in the agents list, including space headers, for the one-time reveal.
+        let mut list_rows = 0usize;
         // A plugin view hid every agent, rather than there being none.
         let mut filtered = false;
         // Child positions of the highlighted rows, for the one-time reveal below.
-        // Agent rows are counted by `agent_count`, which indexes that list.
+        // Agent rows are counted by `list_rows`, which indexes that list.
         let mut space_rows = 0usize;
         let mut highlighted = [None; 2];
         // A lifted workspace row: each drop unit's rows in the spaces list, and
@@ -617,7 +619,40 @@ impl HerdrWindow {
                 continue;
             }
             filtered |= snapshot.agent_view_label.is_some();
-            for agent in sorted_agents(snapshot, self.agent_sort) {
+            // `Grouped` (`spaces`) lists each space's agents under its own
+            // header, workspaces in daemon order. Other sorts stay flat.
+            let grouped = self.agent_sort == crate::preferences::AgentSort::Grouped
+                && snapshot.agent_view_label.is_none();
+            let ordered: Vec<(Option<&str>, &herdr_client::protocol::ClientShellAgent)> = if grouped
+            {
+                group_agents_by_space(snapshot)
+                    .into_iter()
+                    .flat_map(|(label, agents)| {
+                        agents.into_iter().enumerate().map(move |(index, agent)| {
+                            (if index == 0 { Some(label) } else { None }, agent)
+                        })
+                    })
+                    .collect()
+            } else {
+                sorted_agents(snapshot, self.agent_sort)
+                    .into_iter()
+                    .map(|agent| (None, agent))
+                    .collect()
+            };
+            for (header, agent) in ordered {
+                if let Some(label) = header {
+                    agents = agents.child(
+                        div()
+                            .debug_selector(|| format!("agent-group-{label}"))
+                            .flex_none()
+                            .px(px(content_x))
+                            .pt(px(4.))
+                            .text_color(rgb(theme.muted))
+                            .truncate()
+                            .child(label_text(label)),
+                    );
+                    list_rows += 1;
+                }
                 let lines = if agents_custom {
                     let Some(lines) = tokens::agent_rows(
                         &self.config.sidebar_layout.agents,
@@ -632,13 +667,14 @@ impl HerdrWindow {
                     Vec::new()
                 };
                 if selected && agent.focused {
-                    highlighted[1] = Some(agent_count);
+                    highlighted[1] = Some(list_rows);
                 }
                 let gap = if agents_custom && agent_count > 0 {
                     f32::from(self.config.sidebar_layout.agents.row_gap) * line_height(font)
                 } else {
                     0.
                 };
+                list_rows += 1;
                 agent_count += 1;
                 let id = agent.pane_id.clone();
                 let navigate_endpoint = endpoint_id.clone();

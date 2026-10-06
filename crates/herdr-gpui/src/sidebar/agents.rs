@@ -88,6 +88,40 @@ pub(super) fn sorted_agents(
     }
     ordered
 }
+/// Agents grouped under their space for the `Grouped` (`spaces`) sort.
+///
+/// Workspaces stay in daemon order and each workspace's agents keep snapshot
+/// order. Workspaces without agents emit no group. Agents whose workspace is
+/// gone collect under a trailing `"unknown"` group so none vanish.
+pub(super) fn group_agents_by_space<'a>(
+    snapshot: &'a ClientShellSnapshot,
+) -> Vec<(&'a str, Vec<&'a ClientShellAgent>)> {
+    let mut groups = Vec::new();
+    for workspace in &snapshot.workspaces {
+        let agents: Vec<_> = snapshot
+            .agents
+            .iter()
+            .filter(|agent| agent.workspace_id == workspace.workspace_id)
+            .collect();
+        if !agents.is_empty() {
+            groups.push((workspace.label.as_str(), agents));
+        }
+    }
+    let known: std::collections::HashSet<&str> = snapshot
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.as_str())
+        .collect();
+    let orphans: Vec<_> = snapshot
+        .agents
+        .iter()
+        .filter(|agent| !known.contains(agent.workspace_id.as_str()))
+        .collect();
+    if !orphans.is_empty() {
+        groups.push(("unknown", orphans));
+    }
+    groups
+}
 
 /// What an agent is called wherever it is listed.
 pub(crate) fn agent_name(agent: &ClientShellAgent) -> &str {
