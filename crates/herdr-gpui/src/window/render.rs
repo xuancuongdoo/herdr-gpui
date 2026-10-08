@@ -970,7 +970,8 @@ impl Render for HerdrWindow {
                             })),
                     ),
                             ),
-                    ),
+                    )
+                    .children(self.inspector_panel(window, cx)),
             )
             .when(merged, |root| root.children(self.render_worktree_banner()))
             .children(self.render_toasts(window, cx))

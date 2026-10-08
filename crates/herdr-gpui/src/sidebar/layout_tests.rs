@@ -23,9 +23,13 @@ mod agent_rows;
 #[cfg(test)]
 mod configured_rows;
 #[cfg(test)]
+mod custom_agents_tree;
+#[cfg(test)]
 mod device_footer;
 #[cfg(test)]
 mod host_groups;
+#[cfg(test)]
+mod inspector_panel;
 #[cfg(test)]
 mod layouts;
 #[cfg(test)]
@@ -49,7 +53,20 @@ mod status_bar;
 #[cfg(test)]
 mod text_width;
 #[cfg(test)]
+mod tree;
+#[cfg(test)]
+mod tree_empty_space;
+#[cfg(test)]
+mod tree_gap;
+mod tree_orch_first;
+#[cfg(test)]
+mod tree_groups;
+#[cfg(test)]
+mod tree_role_refresh;
+#[cfg(test)]
 mod update_panel;
+#[cfg(test)]
+mod visual_tree_fixture;
 #[cfg(test)]
 mod workspace_menu;
 #[cfg(test)]
@@ -505,6 +522,15 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         integrations: Default::default(),
         install_warning_shown: false,
         collapsed_repos: Default::default(),
+        tree_collapsed: Default::default(),
+        sidebar_search: String::new(),
+        sidebar_search_open: false,
+        sidebar_status_filter: Default::default(),
+        sidebar_selected: 0,
+        sidebar_focus: cx.focus_handle(),
+        sidebar_search_focus: cx.focus_handle(),
+        inspector_focus: cx.focus_handle(),
+        last_inspected: None,
         wheel: WheelAccumulator::default(),
         sidebar_width: None,
         sidebar_drag: None,
@@ -516,6 +542,12 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_modified: false,
         agent_sort: Default::default(),
         agent_sort_modified: false,
+        mission_agents: Vec::new(),
+        mission_inflight: Default::default(),
+        mission_notes: Default::default(),
+        mission_disabled: Default::default(),
+        mission_ids: Vec::new(),
+        mission_mid: Default::default(),
         avatars: None,
         #[cfg(feature = "integration-test")]
         input_probe: crate::smoke::InputProbe::default(),
@@ -547,4 +579,17 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         shift_taps: Default::default(),
         _prefix_interceptor: HerdrWindow::intercept_prefix(window, cx),
     }
+}
+
+/// The fixture in the flat `priority` sort, for tests of the flat agent row:
+/// its icon, status word, and configured lines. The default `spaces` sort
+/// draws one tree line per agent instead (see `tree`).
+#[cfg(test)]
+pub(crate) fn flat_fixture_window(
+    window: &mut Window,
+    cx: &mut Context<HerdrWindow>,
+) -> HerdrWindow {
+    let mut view = fixture_window(window, cx);
+    view.agent_sort = crate::preferences::AgentSort::Priority;
+    view
 }

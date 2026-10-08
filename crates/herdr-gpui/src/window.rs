@@ -58,6 +58,7 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use herdr_client::{ConnectOptions, ConnectTarget};
+use herdr_client::protocol::ClientShellAgent;
 #[cfg(feature = "integration-test")]
 use std::sync::Arc;
 use std::time::Duration;
@@ -182,6 +183,22 @@ pub(crate) struct HerdrWindow {
     pub(crate) tunnels: crate::listening_ports::Tunnels,
     pub(crate) install_warning_shown: bool,
     pub(crate) collapsed_repos: std::collections::HashSet<String>,
+    /// Fold state for the agents tree (`spaces` sort). `dev:`/`ws:`/`job:`
+    /// keys mean collapsed; `grp:<workspace>:<pane>:<done|idle>` keys mean
+    /// expanded (status groups collapse by default). Flipped by row clicks
+    /// and [`HerdrWindow::toggle_group`], passed to the tree builder.
+    pub(crate) tree_collapsed: std::collections::HashSet<String>,
+    /// Sidebar agent-tree keyboard nav (lane sr-keys: search/filter/selection).
+    pub(crate) sidebar_search: String,
+    pub(crate) sidebar_search_open: bool,
+    pub(crate) sidebar_status_filter: sidebar::keys::StatusFilter,
+    pub(crate) sidebar_selected: usize,
+    pub(crate) sidebar_focus: FocusHandle,
+    pub(crate) sidebar_search_focus: FocusHandle,
+    /// Inspector column focus for Tab cycling (lane sr-fix-insp-count).
+    pub(crate) inspector_focus: FocusHandle,
+    /// Last inspected agent for keep-last (lane sr-fix-insp-count).
+    pub(crate) last_inspected: Option<ClientShellAgent>,
     /// Expanded; collapsed leaves the rail or nothing, as Herdr's
     /// `ui.sidebar_collapsed_mode` chooses (see `sidebar_mode`).
     pub(crate) sidebar_visible: bool,
@@ -205,6 +222,20 @@ pub(crate) struct HerdrWindow {
     /// stored session. Until then the daemon's `ui.agent_panel_sort` decides,
     /// including after a config reload, as upstream's manual override does.
     pub(crate) agent_sort_modified: bool,
+    /// Hibernated mission identities (res-03): refreshed off the UI thread.
+    /// ACTIVE identities stay on their live pane; only `live_pane: None`
+    /// rows render from here, with no pane id.
+    pub(crate) mission_agents: Vec<crate::mission::graph::MissionAgent>,
+    /// Identity ids with a `mission resume` CLI in flight.
+    pub(crate) mission_inflight: std::collections::HashSet<String>,
+    /// Row suffixes by identity id (`session missing` / mismatch / stderr).
+    pub(crate) mission_notes: std::collections::HashMap<String, String>,
+    /// Rows disabled by a 409 lease (exit 3).
+    pub(crate) mission_disabled: std::collections::HashSet<String>,
+    /// Which missions the sidebar polls (`HERDR_MISSION_ID` comma list).
+    pub(crate) mission_ids: Vec<String>,
+    /// Which mission each identity was fetched from.
+    pub(crate) mission_mid: std::collections::HashMap<String, String>,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -330,6 +361,16 @@ impl HerdrWindow {
         }
     }
 
+    /// Flip one agents-tree fold key in `tree_collapsed` (see the field docs
+    /// for what presence means per key kind). Status-group rows call this;
+    /// sr-keys calls it for keyboard expand/collapse (Space).
+    pub(crate) fn toggle_group(&mut self, key: String, cx: &mut Context<Self>) {
+        if !self.tree_collapsed.remove(&key) {
+            self.tree_collapsed.insert(key);
+        }
+        cx.notify();
+    }
+
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.updater.poll() {
             match self.updater.commit_restart() {
@@ -361,6 +402,7 @@ impl HerdrWindow {
         };
         let old_tab = focused_tab(&self.live);
         self.poll_endpoints(cx);
+        self.remember_inspected();
         self.post_system_notifications(window, cx);
         self.ring_bell(window);
         self.poll_integrations(cx);
@@ -606,6 +648,28 @@ impl HerdrWindow {
             .map(|endpoint| crate::usage::Host::from(&endpoint.connection.target))
     }
 
+    /// Focused agent of the selected endpoint's snapshot, for the inspector.
+    /// Reuses tree focus (`agent.focused`); there is no second selection.
+    /// Returns a clone so callers never hold across a snapshot swap.
+    pub(crate) fn selected_agent_view(&self) -> Option<ClientShellAgent> {
+        self.live
+            .snapshot
+            .as_deref()?
+            .agents
+            .iter()
+            .find(|agent| agent.focused)
+            .cloned()
+    }
+
+    /// Keep-last for the inspector (lane sr-fix-insp-count): remember the
+    /// selected agent whenever it exists, so a snapshot that removes it
+    /// still shows the last known data via `selected.or(last_inspected)`.
+    pub(crate) fn remember_inspected(&mut self) {
+        if let Some(agent) = self.selected_agent_view() {
+            self.last_inspected = Some(agent);
+        }
+    }
+
     pub(crate) fn new(
         target: ConnectTarget,
         window: &mut Window,
@@ -619,6 +683,9 @@ impl HerdrWindow {
             target
         };
         let focus = cx.focus_handle();
+        let sidebar_focus = cx.focus_handle();
+        let sidebar_search_focus = cx.focus_handle();
+        let inspector_focus = cx.focus_handle();
         window.focus(&focus, cx);
         let weak = cx.weak_entity();
         let initial_theme = cx
@@ -747,6 +814,15 @@ impl HerdrWindow {
             tunnels: Default::default(),
             install_warning_shown: false,
             collapsed_repos: Default::default(),
+            tree_collapsed: Default::default(),
+            sidebar_search: String::new(),
+            sidebar_search_open: false,
+            sidebar_status_filter: Default::default(),
+            sidebar_selected: 0,
+            sidebar_focus,
+            sidebar_search_focus,
+            inspector_focus,
+            last_inspected: None,
             sidebar_visible: true,
             sidebar_start_pending: true,
             device_filter: None,
@@ -761,6 +837,12 @@ impl HerdrWindow {
             sidebar_modified: false,
             agent_sort: preferences::AgentSort::default(),
             agent_sort_modified: false,
+            mission_agents: Vec::new(),
+            mission_inflight: Default::default(),
+            mission_notes: Default::default(),
+            mission_disabled: Default::default(),
+            mission_ids: sidebar::mission_ui::mission_ids_from_env(),
+            mission_mid: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),
@@ -833,6 +915,7 @@ impl HerdrWindow {
         this.load_gui_config(cx);
         this.load_shared_settings(cx);
         this.watch_gui_config(cx);
+        this.start_mission_refresh(cx);
         this
     }
 }
