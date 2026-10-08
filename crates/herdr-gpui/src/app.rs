@@ -98,6 +98,9 @@ pub(crate) fn open_window(
     let mut bounds = Bounds::centered(None, size(px(1200.), px(780.)), cx);
     bounds.origin += point(step, step);
     let (bounds, display_id) = crate::window_state::WindowState::placement(bounds, cx);
+    // TEST-ONLY escape hatch (`HERDR_TEST_SIDEBAR_CAPTURE`): the capture window
+    // opens unfocused, so it never steals the user's desktop. Unset keeps focus.
+    let capture = std::env::var_os("HERDR_TEST_SIDEBAR_CAPTURE").is_some();
     cx.open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -106,6 +109,7 @@ pub(crate) fn open_window(
             titlebar: Some(titlebar::options(WINDOW_TITLE)),
             app_owns_titlebar_drag: cfg!(target_os = "macos"),
             app_id: Some(crate::constants::APP_ID.into()),
+            focus: !capture,
             ..Default::default()
         },
         |window, cx| {
@@ -343,7 +347,11 @@ pub(crate) fn run() -> std::process::ExitCode {
                     cx.quit();
                 }
             }
-            cx.activate(true);
+            // TEST-ONLY escape hatch (`HERDR_TEST_SIDEBAR_CAPTURE`): the capture
+            // never activates, so it stays off the user's desktop.
+            if std::env::var_os("HERDR_TEST_SIDEBAR_CAPTURE").is_none() {
+                cx.activate(true);
+            }
         });
     if startup_failed.get() {
         std::process::ExitCode::FAILURE

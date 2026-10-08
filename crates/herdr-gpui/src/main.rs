@@ -41,6 +41,7 @@ mod group_terminals;
 mod herdr_settings;
 mod icons;
 mod input;
+mod inspector;
 mod integrations;
 mod keymap;
 mod lenient;
@@ -51,6 +52,7 @@ mod log_window;
 mod login_env;
 mod menu;
 mod menus;
+mod mission;
 #[cfg(feature = "mockup")]
 mod mockup;
 mod motion;
