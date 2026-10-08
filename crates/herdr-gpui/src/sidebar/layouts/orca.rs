@@ -313,4 +313,15 @@ impl RowLayout for Orca {
             .child(parts::icon(agent.icon.path(), icon, color))
             .child(text.into_div())
     }
+
+    /// The agent card without its status column, which the tree row's glyph
+    /// replaces. Its padding moves the content to the look's `content_x`, so
+    /// guides inside the card meet the tree headers' guides.
+    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+        card(key, state, 0., 4., cx.theme)
+            .h(px(line_height(cx.font) + 8.))
+            .items_center()
+            .px(px(cx.look.content_x() - MARGIN - BORDER))
+            .child(content)
+    }
 }

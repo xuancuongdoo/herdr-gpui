@@ -80,47 +80,17 @@ pub(super) fn sorted_agents(
     let mut ordered: Vec<_> = snapshot.agents.iter().collect();
     if sort == crate::preferences::AgentSort::Priority {
         ordered.sort_by_key(|agent| {
+            // Orchestrators stay first in every sort mode, as in the tree.
             (
-                std::cmp::Reverse(status_priority(agent.agent_status)),
-                std::cmp::Reverse(agent.state_change_seq),
+                !super::tree::is_orchestrator(snapshot, agent),
+                (
+                    std::cmp::Reverse(status_priority(agent.agent_status)),
+                    std::cmp::Reverse(agent.state_change_seq),
+                ),
             )
         });
     }
     ordered
-}
-/// Agents grouped under their space for the `Grouped` (`spaces`) sort.
-///
-/// Workspaces stay in daemon order and each workspace's agents keep snapshot
-/// order. Workspaces without agents emit no group. Agents whose workspace is
-/// gone collect under a trailing `"unknown"` group so none vanish.
-pub(super) fn group_agents_by_space<'a>(
-    snapshot: &'a ClientShellSnapshot,
-) -> Vec<(&'a str, Vec<&'a ClientShellAgent>)> {
-    let mut groups = Vec::new();
-    for workspace in &snapshot.workspaces {
-        let agents: Vec<_> = snapshot
-            .agents
-            .iter()
-            .filter(|agent| agent.workspace_id == workspace.workspace_id)
-            .collect();
-        if !agents.is_empty() {
-            groups.push((workspace.label.as_str(), agents));
-        }
-    }
-    let known: std::collections::HashSet<&str> = snapshot
-        .workspaces
-        .iter()
-        .map(|workspace| workspace.workspace_id.as_str())
-        .collect();
-    let orphans: Vec<_> = snapshot
-        .agents
-        .iter()
-        .filter(|agent| !known.contains(agent.workspace_id.as_str()))
-        .collect();
-    if !orphans.is_empty() {
-        groups.push(("unknown", orphans));
-    }
-    groups
 }
 
 /// What an agent is called wherever it is listed.
@@ -228,13 +198,16 @@ impl Indicators {
     }
 }
 
+/// Row prefix for the agent tree: status as a symbol that reads without colour.
+/// Colour stays as a secondary cue via `Indicators::color`. Orchestrator vs
+/// worker is indentation plus `◆`, not text.
 pub(super) fn status_symbol(status: AgentStatus) -> &'static str {
     match status {
+        AgentStatus::Idle => "\u{25cc}",
         AgentStatus::Working => "\u{25d0}",
-        AgentStatus::Blocked => "\u{d7}",
+        AgentStatus::Blocked => "!",
         AgentStatus::Done => "\u{2713}",
-        AgentStatus::Idle => "\u{25cb}",
-        AgentStatus::Unknown => "\u{b7}",
+        AgentStatus::Unknown => "?",
     }
 }
 
@@ -351,7 +324,7 @@ pub(super) fn status_style(status: AgentStatus, theme: &Theme) -> (f32, bool, u3
 
 #[cfg(test)]
 mod tests {
-    use super::{Indicators, sorted_agents, state_label, status_indicator};
+    use super::{Indicators, sorted_agents, state_label, status_indicator, status_symbol};
     use crate::{config::FontConfig, herdr_settings::IndicatorStyle};
     use gpui::{Styled, rgb};
     use herdr_client::protocol::AgentStatus;
@@ -420,6 +393,19 @@ mod tests {
                     assert_eq!(slot.text_style().color, Some(rgb(expected).into()));
                 }
             }
+        }
+    }
+
+    #[test]
+    fn status_symbols_read_without_colour() {
+        for (status, symbol) in [
+            (AgentStatus::Idle, "\u{25cc}"),
+            (AgentStatus::Working, "\u{25d0}"),
+            (AgentStatus::Blocked, "!"),
+            (AgentStatus::Done, "\u{2713}"),
+            (AgentStatus::Unknown, "?"),
+        ] {
+            assert_eq!(status_symbol(status), symbol);
         }
     }
 

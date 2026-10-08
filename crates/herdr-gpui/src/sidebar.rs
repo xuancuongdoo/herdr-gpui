@@ -4,9 +4,13 @@
 mod agents;
 mod cell;
 mod hover;
+pub(crate) mod inspector;
+mod inspector_fields;
+pub(crate) mod keys;
 mod layout;
 mod layouts;
 mod metrics;
+pub(crate) mod mission_ui;
 mod order;
 pub(crate) mod preview;
 mod rail;
@@ -14,6 +18,7 @@ mod render;
 mod reorder;
 mod row;
 mod tokens;
+pub(crate) mod tree;
 mod view;
 mod workspaces;
 

@@ -7,6 +7,8 @@ mod minimal;
 mod orca;
 mod parts;
 mod superset;
+#[cfg(test)]
+mod tree_tests;
 
 pub(super) use {herdr::Herdr, minimal::Minimal, orca::Orca, superset::Superset};
 

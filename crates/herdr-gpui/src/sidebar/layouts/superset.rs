@@ -48,7 +48,7 @@ impl Metrics {
 }
 
 /// The row: padding, the state fill, the stripe, and one measured line.
-fn shell(key: &str, state: RowState, indent: f32, line: Line<'_>, cx: &RowContext<'_>) -> Div {
+fn shell(key: &str, state: RowState, indent: f32, line: Div, cx: &RowContext<'_>) -> Div {
     let theme = cx.theme;
     let gap = cx.look.density.gap();
     let row = div()
@@ -82,7 +82,7 @@ fn shell(key: &str, state: RowState, indent: f32, line: Line<'_>, cx: &RowContex
                 .bg(rgb(theme.foreground)),
         )
     })
-    .child(line.into_div())
+    .child(line)
 }
 
 /// The icon slot, with the status as a dot pinned to its top right corner in
@@ -262,7 +262,7 @@ impl RowLayout for Superset {
                 let width = m.icon * 0.6;
                 line.fixed(width, fold.element(theme).w(px(width)).text_size(px(14.)))
             });
-        shell(label, state, indent, line, cx)
+        shell(label, state, indent, line.into_div(), cx)
     }
 
     fn agent(&self, agent: AgentRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div {
@@ -289,7 +289,7 @@ impl RowLayout for Superset {
                     cx,
                 )
             });
-            return shell(key, state, 0., line, cx);
+            return shell(key, state, 0., line.into_div(), cx);
         }
         // Where the agent runs trails its name, never over half the row.
         let line = line
@@ -321,7 +321,13 @@ impl RowLayout for Superset {
                     0.5,
                 )
             });
-        shell(key, state, 0., line, cx)
+        shell(key, state, 0., line.into_div(), cx)
+    }
+
+    /// Tree rows show status in their own glyph column, so they skip the
+    /// icon slot and its dot: the stripe and fill are the only chrome.
+    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+        shell(key, state, 0., content, cx)
     }
 }
 

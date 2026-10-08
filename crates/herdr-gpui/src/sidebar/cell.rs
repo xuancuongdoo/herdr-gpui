@@ -13,13 +13,14 @@
 
 use super::{
     layout::SidebarLook,
+    metrics::line_height,
     row::{RowBadge, RowIcon, RowLift, RowTree, Upstream},
 };
 use crate::{
     config::{FontConfig, LayoutMode, Theme},
     icons::AgentIcon,
 };
-use gpui::{App, ClickEvent, Div, ElementId, Window};
+use gpui::{App, ClickEvent, Div, ElementId, Window, div, prelude::*, px};
 use herdr_client::protocol::{AgentStatus, ClientShellWorkspace};
 use std::borrow::Cow;
 
@@ -134,6 +135,27 @@ pub(super) struct RowState {
 pub(super) trait RowLayout {
     fn workspace(&self, row: WorkspaceRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
     fn agent(&self, row: AgentRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
+
+    /// Wraps a tree agent row's one-line `content` in this layout's chrome.
+    /// The content must start at the look's `content_x` and get its
+    /// `content_width`, so the row's guides meet the tree headers' above.
+    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+        let look = cx.look;
+        div()
+            .debug_selector(|| format!("row-{key}"))
+            .h(px(look.row_height(line_height(cx.font))))
+            .w_full()
+            .min_w_0()
+            .flex_none()
+            .relative()
+            .px(px(look.content_x()))
+            .py(px(look.row_padding() + look.spacing() / 2.))
+            .flex()
+            .items_start()
+            .cursor_pointer()
+            .map(|row| look.mark(row, key, state, cx.theme))
+            .child(content)
+    }
 }
 
 /// One row waiting for its state: build it, mark it, then take the element.
