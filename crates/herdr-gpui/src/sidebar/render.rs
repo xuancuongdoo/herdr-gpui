@@ -3,10 +3,10 @@
 //! caches only.
 
 use super::{
-    DEVICE_FOOTER_HEIGHT, HOST_ARROW_WIDTH, HOST_GAP, STATUS_WIDTH, SidebarDrag, agent_name,
-    agents::{Indicators, agent_place, group_agents_by_space, state_label, status_text},
+    DEVICE_FOOTER_HEIGHT, HOST_ARROW_WIDTH, HOST_GAP, STATUS_WIDTH, SidebarDrag,
+    agents::Indicators,
     agents_sort,
-    cell::{AgentRow, Cell, Fold, RowContext, RowData, RowState, WorkspaceRow, layout_for},
+    cell::{Cell, Fold, RowContext, RowData, RowState, WorkspaceRow, layout_for},
     label_text,
     layout::{self, SidebarLook},
     line_height,
@@ -619,31 +619,46 @@ impl HerdrWindow {
                 continue;
             }
             filtered |= snapshot.agent_view_label.is_some();
-            // `Grouped` (`spaces`) lists each space's agents under its own
-            // header, workspaces in daemon order. Other sorts stay flat.
+            // `Grouped` (`spaces`) renders the device → space → agent tree,
+            // workspaces in daemon order. Other sorts stay flat, and so does a
+            // custom agents layout: tree rows cannot honor its lines or row_gap.
             let grouped = self.agent_sort == crate::preferences::AgentSort::Grouped
-                && snapshot.agent_view_label.is_none();
-            let ordered: Vec<(Option<&str>, &herdr_client::protocol::ClientShellAgent)> = if grouped
-            {
-                group_agents_by_space(snapshot)
-                    .into_iter()
-                    .flat_map(|(label, agents)| {
-                        agents.into_iter().enumerate().map(move |(index, agent)| {
-                            (if index == 0 { Some(label) } else { None }, agent)
-                        })
-                    })
-                    .collect()
-            } else {
-                sorted_agents(snapshot, self.agent_sort)
-                    .into_iter()
-                    .map(|agent| (None, agent))
-                    .collect()
-            };
-            let mut pending_header: Option<&str> = None;
-            for (header, agent) in ordered {
-                if let Some(label) = header {
-                    pending_header = Some(label);
+                && snapshot.agent_view_label.is_none()
+                && !agents_custom;
+            if grouped {
+                let ctx = super::tree::render::GroupedCtx {
+                    snapshot,
+                    endpoint_id: &endpoint_id,
+                    endpoint_label: &endpoint.label,
+                    selected,
+                    multi,
+                    connected: live.status.is_connected(),
+                    content_x,
+                    agents_custom,
+                    agent_layout: &self.config.sidebar_layout.agents,
+                    rows,
+                    indicators,
+                    font,
+                    theme,
+                    look,
+                    width,
+                    host: row_cx.host,
+                    collapsed: &self.tree_collapsed,
+                    search: &self.sidebar_search,
+                    status_filter: self.sidebar_status_filter,
+                };
+                let outcome =
+                    super::tree::render::render_grouped(agents, &ctx, list_rows, agent_count, cx);
+                agents = outcome.agents;
+                list_rows = outcome.list_rows;
+                agent_count = outcome.agent_count;
+                if let Some(row) = outcome.focused {
+                    highlighted[1] = Some(row);
                 }
+                continue;
+            }
+            let ordered = sorted_agents(snapshot, self.agent_sort);
+            for agent in ordered {
                 let lines = if agents_custom {
                     let Some(lines) = tokens::agent_rows(
                         &self.config.sidebar_layout.agents,
@@ -657,28 +672,6 @@ impl HerdrWindow {
                 } else {
                     Vec::new()
                 };
-                // Group headers add workspace text; skip them when custom rows
-                // resolve to the icon-only fallback so empty configs keep only
-                // the fallback. Pending keeps the label for a later visible
-                // agent in the same group; a new group's label overwrites it.
-                if let Some(label) = pending_header {
-                    let show = !agents_custom
-                        || lines.iter().flatten().any(|token| token.kind.text().is_some());
-                    if show {
-                        agents = agents.child(
-                            div()
-                                .debug_selector(|| format!("agent-group-{label}"))
-                                .flex_none()
-                                .px(px(content_x))
-                                .pt(px(4.))
-                                .text_color(rgb(theme.muted))
-                                .truncate()
-                                .child(label_text(label)),
-                        );
-                        list_rows += 1;
-                        pending_header = None;
-                    }
-                }
                 if selected && agent.focused {
                     highlighted[1] = Some(list_rows);
                 }
@@ -689,40 +682,52 @@ impl HerdrWindow {
                 };
                 list_rows += 1;
                 agent_count += 1;
-                let id = agent.pane_id.clone();
-                let navigate_endpoint = endpoint_id.clone();
-                agents = agents.child(
-                    Cell::new(
-                        rows,
-                        RowData::Agent(AgentRow {
-                            key: format!("agent-{id}"),
-                            name: agent_name(agent),
-                            icon: crate::icons::AgentIcon::from_identity(agent.agent.as_deref()),
-                            status: agent.agent_status,
-                            place: agent_place(agent, snapshot),
-                            status_text: self
-                                .config
-                                .sidebar_layout
-                                .agents
-                                .shows_status_text(agent.agent.as_deref())
-                                .then(|| state_label(agent, status_text(agent.agent_status))),
-                            lines,
-                        }),
-                        &row_cx,
-                    )
-                    .selected(selected && agent.focused)
-                    .row()
-                    .when(gap > 0., |row| row.mt(px(gap)))
-                    .id(SharedString::from(format!("agent-{endpoint_id}-{id}")))
-                    .when(multi, |row| {
-                        row.debug_selector(|| format!("agent-{endpoint_id}-{id}"))
-                    })
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.navigate_endpoint(&navigate_endpoint, NavigationTarget::Pane(&id), cx);
-                        window.focus(&this.focus, cx);
-                    })),
-                );
+                let row_ctx = super::tree::render::AgentRowCtx {
+                    snapshot,
+                    agent_layout: &self.config.sidebar_layout.agents,
+                    rows,
+                    selected,
+                    endpoint_id: &endpoint_id,
+                    multi,
+                    prefix_width: 0.,
+                };
+                agents = agents.child(super::tree::render::agent_row(
+                    agent, &row_ctx, &row_cx, gap, "", lines, cx,
+                ));
             }
+        }
+        for (mid, agent) in self.mission_hibernated() {
+            let note = super::mission_ui::mission_row_note(
+                agent,
+                &self.mission_inflight,
+                &self.mission_notes,
+                &self.mission_disabled,
+            );
+            let name = super::mission_ui::mission_display_name(&agent.identity_id);
+            let text = super::mission_ui::mission_row_text(name, note.as_deref());
+            let id = agent.identity_id.clone();
+            let mid_owned = mid.clone();
+            let selectable = super::mission_ui::is_selectable(agent)
+                && !self.mission_disabled.contains(&id);
+            let row_id = format!("mission-{}", id.replace('/', "-"));
+            agent_count += 1;
+            agents = agents.child(
+                div()
+                    .flex_none()
+                    .w_full()
+                    .px(px(content_x))
+                    .child(label_text(&text))
+                    .text_color(rgb(if selectable {
+                        theme.foreground
+                    } else {
+                        theme.muted
+                    }))
+                    .when(selectable, |row| row.cursor_pointer())
+                    .id(SharedString::from(row_id))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.select_mission_identity(&mid_owned, &id, window, cx);
+                    })),
+            );
         }
         if sliding {
             window.request_animation_frame();
@@ -766,6 +771,75 @@ impl HerdrWindow {
         div()
             .id("sidebar")
             .debug_selector(|| "sidebar".into())
+            .key_context(crate::sidebar::keys::KEY_CONTEXT)
+            .track_focus(&self.sidebar_focus)
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarUp, _, cx| this.move_sidebar_selection(-1, cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarDown, _, cx| this.move_sidebar_selection(1, cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarOpen, window, cx| this.open_selected_agent(window, cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarToggle, _, cx| this.toggle_selected_agent_group(cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarSearch, window, cx| this.focus_sidebar_search(window, cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarCycleFilter, _, cx| this.cycle_sidebar_filter(cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarFocusNext, window, cx| this.focus_next_sidebar(window, cx)))
+            .on_action(cx.listener(|this, _: &crate::sidebar::keys::SidebarClearSearch, window, cx| this.clear_sidebar_search(window, cx)))
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                // Escape reaches here instead of the terminal while sidebar
+                // focus holds it (track_focus auto-focus on mouse-down), and
+                // the HerdrSidebar binding never fires in this path, so cancel
+                // drags here, mirroring the terminal's key_down.
+                if event.keystroke.key == "escape"
+                    && (this.cancel_workspace_drag(cx) | this.cancel_tab_drag(cx))
+                {
+                    cx.stop_propagation();
+                    window.prevent_default();
+                    return;
+                }
+                if !this.sidebar_search_open {
+                    return;
+                }
+                if event.keystroke.modifiers.platform
+                    || event.keystroke.modifiers.control
+                    || event.keystroke.modifiers.alt
+                    || event.keystroke.modifiers.function
+                {
+                    return;
+                }
+                match event.keystroke.key.as_str() {
+                    // Enter/Escape keep their actions: Enter closes keeping the
+                    // query, Escape clears and closes.
+                    "enter" | "escape" | "tab" | "up" | "down" | "left" | "right" => {}
+                    "backspace" => {
+                        this.sidebar_search.pop();
+                        this.clamp_sidebar_selection();
+                        cx.notify();
+                        cx.stop_propagation();
+                        window.prevent_default();
+                    }
+                    "space" => {
+                        this.push_sidebar_search_text(" ", cx);
+                        cx.stop_propagation();
+                        window.prevent_default();
+                    }
+                    key if key.len() == 1 => {
+                        let text = event.keystroke.key_char.as_deref().unwrap_or(key);
+                        this.push_sidebar_search_text(text, cx);
+                        cx.stop_propagation();
+                        window.prevent_default();
+                    }
+                    _ => {
+                        // Committed text (IME "日本", dead keys) arrives whole:
+                        // accept it as-is instead of single characters only,
+                        // mirroring how the find bar leaves composition to the
+                        // platform instead of per-keystroke appends.
+                        if let Some(text) = event.keystroke.key_char.as_deref() {
+                            if !text.is_empty() {
+                                this.push_sidebar_search_text(text, cx);
+                                cx.stop_propagation();
+                                window.prevent_default();
+                            }
+                        }
+                    }
+                }
+            }))
             .relative()
             .w(px(width))
             .flex_none()
@@ -879,6 +953,17 @@ impl HerdrWindow {
                                     .justify_between()
                                     .child(agents_sort(self, cx)),
                             )
+                            .when_some(self.sidebar_search_line(), |section, line| {
+                                section.child(
+                                    div()
+                                        .debug_selector(|| "sidebar-search".into())
+                                        .track_focus(&self.sidebar_search_focus)
+                                        .px(px(content_x))
+                                        .text_color(rgb(theme.muted))
+                                        .truncate()
+                                        .child(line),
+                                )
+                            })
                             .child(agents),
                     )
             })
@@ -990,6 +1075,17 @@ impl HerdrWindow {
                 .absolute()
                 .size_full(),
             )
+    }
+    /// Append committed text to the sidebar query, keeping the tree
+    /// selection in range. Committed IME text arrives whole ("日本"), so
+    /// this takes the full string instead of one character.
+    pub(crate) fn push_sidebar_search_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        if text.is_empty() {
+            return;
+        }
+        self.sidebar_search.push_str(text);
+        self.clamp_sidebar_selection();
+        cx.notify();
     }
 }
 

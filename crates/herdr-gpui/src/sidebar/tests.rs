@@ -21,5 +21,5 @@ use herdr_client::protocol::{
 
 mod hierarchy;
 mod row_text;
-mod space_groups;
+mod search_ime;
 mod statuses;

@@ -57,6 +57,14 @@ impl HerdrWindow {
             })
             .collect()
     }
+
+    pub(crate) fn sidebar_visible_agents(&self) -> Vec<Row<'_>> {
+        self.listed_hosts().flat_map(|(index, snapshot)| {
+            let label = &self.endpoints[index].label;
+            super::tree::render::visible_agent_panes(snapshot, label, &self.sidebar_search, self.sidebar_status_filter, &self.tree_collapsed)
+                .into_iter().filter_map(|pane_id| snapshot.agents.iter().find(|agent| agent.pane_id == pane_id).map(|agent| (index, agent.pane_id.as_str()))).collect::<Vec<_>>()
+        }).collect()
+    }
 }
 
 /// Which row a sidebar step lands on. `current` is the focused row, if the
