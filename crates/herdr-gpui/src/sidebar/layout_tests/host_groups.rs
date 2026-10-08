@@ -89,16 +89,20 @@ fn multi_host_rows_scope_duplicate_ids_and_keep_agents_when_host_collapses(
         cx.default_global::<TextProbes>().0.clear();
         window.refresh();
         let _ = full_draw(window, cx);
-        // The remote workspace row folds away -- its branch goes with it -- while
-        // its agent keeps naming the host it runs on.
-        assert!(!cx.global::<TextProbes>().0.contains_key("remote branch"));
-        for part in ["Remote", "remote workspace", "tab 1"] {
-            assert!(
-                cx.global::<TextProbes>().0.contains_key(part),
-                "{part}: {:?}",
-                cx.global::<TextProbes>().0.keys()
-            );
+        // The remote workspace row folds away -- its branch goes with it --
+        // while the agent tree keeps the remote device and space above it.
+        let probes = &cx.global::<TextProbes>().0;
+        assert!(!probes.contains_key("remote branch"));
+        for part in ["Remote", "\u{25be} Remote"] {
+            assert!(probes.contains_key(part), "{part}: {:?}", probes.keys());
         }
+        assert!(
+            probes
+                .keys()
+                .any(|text| text.ends_with("\u{25be} remote workspace")),
+            "{:?}",
+            probes.keys()
+        );
     });
     assert!(cx.debug_bounds("workspace-local-w0").is_some());
     assert!(cx.debug_bounds("agent-ssh:test-p0").is_some());

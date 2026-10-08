@@ -41,10 +41,10 @@ fn status_symbols_match_upstream_without_changing_status_colors() {
     indicators.style = IndicatorStyle::Symbols;
     for (status, symbol) in [
         (AgentStatus::Working, "\u{25d0}"),
-        (AgentStatus::Blocked, "\u{d7}"),
+        (AgentStatus::Blocked, "!"),
         (AgentStatus::Done, "\u{2713}"),
-        (AgentStatus::Idle, "\u{25cb}"),
-        (AgentStatus::Unknown, "\u{b7}"),
+        (AgentStatus::Idle, "\u{25cc}"),
+        (AgentStatus::Unknown, "?"),
     ] {
         assert_eq!(status_symbol(status), symbol);
         assert_eq!(

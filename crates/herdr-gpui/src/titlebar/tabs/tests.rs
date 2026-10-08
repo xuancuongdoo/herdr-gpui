@@ -61,15 +61,16 @@ fn the_tab_row_stands_in_for_the_header(cx: &mut TestAppContext) {
     assert_eq!(toggle.left(), px(LEADING));
     assert!(header.contains(&toggle.center()));
     assert!(cx.debug_bounds("strip-titlebar-leading").is_none());
-    // The strip ends with the account at the window's right edge.
+    // The strip ends with the account at the inspector slot's left edge
+    // (1200px window minus the 280px INSPECTOR_WIDTH slot).
     let new_tab = cx.debug_bounds("new-tab").unwrap();
     assert_eq!(new_tab.top(), px(0.));
     assert_eq!(new_tab.size.height, px(HEIGHT));
     let trailing = cx.debug_bounds("strip-titlebar-trailing").unwrap();
-    assert_eq!(trailing.right(), px(1200.));
+    assert_eq!(trailing.right(), px(1200. - crate::inspector::INSPECTOR_WIDTH));
     assert_eq!(
         cx.debug_bounds("titlebar-avatar").unwrap(),
-        Bounds::new(point(px(1200. - 34.), px(3.)), size(px(28.), px(28.)))
+        Bounds::new(point(px(1200. - crate::inspector::INSPECTOR_WIDTH - 34.), px(3.)), size(px(28.), px(28.)))
     );
     let room = cx.debug_bounds("strip-titlebar-room").unwrap();
     assert!(room.size.width >= px(DRAG_ROOM));

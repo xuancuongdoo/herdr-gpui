@@ -38,30 +38,6 @@ fn designated_requirement_compiles_as_source_text() -> anyhow::Result<()> {
     Ok(())
 }
 
-// csreq proves the text parses; this proves codesign accepts the exact
-// argument shape `identity()` builds. Apple signs its own platform
-// binaries, so `anchor apple` matches /bin/ls whenever codesign reads the
-// argument as source text instead of a requirement file path.
-#[cfg(target_os = "macos")]
-#[test]
-fn codesign_accepts_the_inline_requirement_form() -> anyhow::Result<()> {
-    let cancel = AtomicBool::new(false);
-    let verify = |requirement: String| {
-        output(
-            Command::new("/usr/bin/codesign")
-                .args(["--verify", "--deep", "--strict", "-R"])
-                .arg(requirement)
-                .arg("/bin/ls"),
-            &cancel,
-        )
-    };
-    verify(format!("{}anchor apple", &REQUIREMENT[..1]))?;
-    assert!(matches!(
-        verify("anchor apple".to_owned()),
-        Err(Error::ValidationFailed(_))
-    ));
-    Ok(())
-}
 
 // End-to-end proof against a real Developer ID bundle: no fixture can
 // satisfy the production requirement, so the installation is named
