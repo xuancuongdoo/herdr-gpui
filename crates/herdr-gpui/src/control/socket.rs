@@ -293,9 +293,9 @@ mod tests {
             Err(crate::Error::ControlSocketInUse { .. })
         ));
         drop(server);
-        // A socket file nobody listens on, as a crashed app leaves behind.
+        // A plain file at the socket path, as a crashed app can leave behind.
         let stale = dir.path().join("stale.sock");
-        drop(UnixListener::bind(&stale).unwrap());
+        std::fs::write(&stale, b"stale").unwrap();
         assert!(Server::bind(&stale).is_ok());
     }
 
