@@ -38,7 +38,6 @@ fn designated_requirement_compiles_as_source_text() -> anyhow::Result<()> {
     Ok(())
 }
 
-
 // End-to-end proof against a real Developer ID bundle: no fixture can
 // satisfy the production requirement, so the installation is named
 // explicitly and never discovered.

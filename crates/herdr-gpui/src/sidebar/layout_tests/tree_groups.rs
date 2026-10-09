@@ -72,7 +72,7 @@ fn groups_snapshot() -> ClientShellSnapshot {
             status,
         )
     });
-    fixture.agents = std::iter::once(orch).chain(workers.into_iter()).collect();
+    fixture.agents = std::iter::once(orch).chain(workers).collect();
     fixture.focused_pane_id = None;
     fixture
 }
@@ -103,15 +103,14 @@ fn painted(cx: &mut gpui::VisualTestContext, text: &str) -> bool {
 }
 
 fn has_row(cx: &mut gpui::VisualTestContext, pane: &str) -> bool {
-    cx.debug_bounds(format!("row-agent-{pane}").leak()).is_some()
+    cx.debug_bounds(format!("row-agent-{pane}").leak())
+        .is_some()
 }
 
 /// (a) orchestrator with 2 working, 3 done, 2 idle: working visible plus
 /// `Completed (3)` and `Available (2)` groups, collapsed by default.
 #[gpui::test]
-fn mixed_workers_show_collapsed_completed_and_available_groups(
-    cx: &mut gpui::TestAppContext,
-) {
+fn mixed_workers_show_collapsed_completed_and_available_groups(cx: &mut gpui::TestAppContext) {
     let (_, cx) = sorted_window(groups_snapshot(), AgentSort::Grouped, cx);
     assert!(painted(cx, "Completed (3)"), "missing Completed (3) group");
     assert!(painted(cx, "Available (2)"), "missing Available (2) group");
@@ -119,7 +118,10 @@ fn mixed_workers_show_collapsed_completed_and_available_groups(
         assert!(has_row(cx, pane), "{pane} working must stay visible");
     }
     for pane in ["pd0", "pd1", "pd2", "pa0", "pa1"] {
-        assert!(!has_row(cx, pane), "{pane} must hide inside collapsed group");
+        assert!(
+            !has_row(cx, pane),
+            "{pane} must hide inside collapsed group"
+        );
     }
 }
 
@@ -128,12 +130,39 @@ fn mixed_workers_show_collapsed_completed_and_available_groups(
 /// absence means folded (collapsed by default).
 #[test]
 fn expanding_group_shows_members_in_stable_order() {
-    let devices = vec![("Local".to_owned(), vec![("w0".to_owned(), "herdr".to_owned())])];
+    let devices = vec![(
+        "Local".to_owned(),
+        vec![("w0".to_owned(), "herdr".to_owned())],
+    )];
     let agents = vec![
-        ("w0".to_owned(), "porch".to_owned(), "orch".to_owned(), tokens(&[("role", "ORCH")]), AgentStatus::Working),
-        ("w0".to_owned(), "pd0".to_owned(), "d0".to_owned(), tokens(&[("role", "worker"), ("parent", "porch")]), AgentStatus::Done),
-        ("w0".to_owned(), "pd1".to_owned(), "d1".to_owned(), tokens(&[("role", "worker"), ("parent", "porch")]), AgentStatus::Done),
-        ("w0".to_owned(), "pd2".to_owned(), "d2".to_owned(), tokens(&[("role", "worker"), ("parent", "porch")]), AgentStatus::Done),
+        (
+            "w0".to_owned(),
+            "porch".to_owned(),
+            "orch".to_owned(),
+            tokens(&[("role", "ORCH")]),
+            AgentStatus::Working,
+        ),
+        (
+            "w0".to_owned(),
+            "pd0".to_owned(),
+            "d0".to_owned(),
+            tokens(&[("role", "worker"), ("parent", "porch")]),
+            AgentStatus::Done,
+        ),
+        (
+            "w0".to_owned(),
+            "pd1".to_owned(),
+            "d1".to_owned(),
+            tokens(&[("role", "worker"), ("parent", "porch")]),
+            AgentStatus::Done,
+        ),
+        (
+            "w0".to_owned(),
+            "pd2".to_owned(),
+            "d2".to_owned(),
+            tokens(&[("role", "worker"), ("parent", "porch")]),
+            AgentStatus::Done,
+        ),
     ];
     let folded = build_agent_tree_with_status(&devices, &agents, &HashSet::new());
     let folded_panes: Vec<String> = folded
@@ -147,8 +176,7 @@ fn expanding_group_shows_members_in_stable_order() {
         !folded_panes.contains(&"pd0".to_owned()),
         "completed members hide while folded, got {folded_panes:?}"
     );
-    let expanded: HashSet<String> =
-        ["grp:w0:porch:done".to_owned()].into_iter().collect();
+    let expanded: HashSet<String> = ["grp:w0:porch:done".to_owned()].into_iter().collect();
     let open = build_agent_tree_with_status(&devices, &agents, &expanded);
     let open_panes: Vec<String> = open
         .iter()
@@ -194,7 +222,10 @@ fn workspace_count_follows_search_filter(cx: &mut gpui::TestAppContext) {
     ];
     fixture.focused_pane_id = None;
     let (view, cx) = sorted_window(fixture, AgentSort::Grouped, cx);
-    assert!(painted(cx, "3 agents"), "unfiltered workspace shows 3 agents");
+    assert!(
+        painted(cx, "3 agents"),
+        "unfiltered workspace shows 3 agents"
+    );
     view.update(cx, |this, cx| {
         this.sidebar_search = "alpha".into();
         cx.notify();

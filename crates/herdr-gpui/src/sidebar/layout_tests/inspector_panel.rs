@@ -7,6 +7,8 @@
 //! `INSPECTOR_MIN_WINDOW_WIDTH` gate. Field rendering itself is pinned by
 //! `inspector_fields` unit tests; these tests prove the panel receives the
 //! right agent in each state using the existing `layout_tests` fixtures.
+#![allow(clippy::expect_used)]
+
 use super::*;
 use crate::preferences::AgentSort;
 use crate::sidebar::inspector_fields::inspector_fields;
@@ -94,7 +96,9 @@ fn inspector_shows_selected_worker_details(cx: &mut gpui::TestAppContext) {
         );
     }
     assert!(
-        values.iter().any(|(l, v)| *l == "Status" && v.contains("working")),
+        values
+            .iter()
+            .any(|(l, v)| *l == "Status" && v.contains("working")),
         "status must render working, got {values:?}"
     );
 }
@@ -142,7 +146,13 @@ fn inspector_keeps_last_known_agent_after_snapshot_removal(cx: &mut gpui::TestAp
     let (view, cx) = wide_window(selected_worker_snapshot(), cx);
     view.update(cx, |view, _| view.remember_inspected());
     view.update(cx, |view, _| {
-        let snapshot = view.live.snapshot.as_ref().expect("snapshot").as_ref().clone();
+        let snapshot = view
+            .live
+            .snapshot
+            .as_ref()
+            .expect("snapshot")
+            .as_ref()
+            .clone();
         let mut next = snapshot;
         next.agents.retain(|agent| agent.pane_id != "p1");
         next.focused_pane_id = None;
@@ -162,7 +172,11 @@ fn inspector_keeps_last_known_agent_after_snapshot_removal(cx: &mut gpui::TestAp
         .into_iter()
         .map(|f| (f.label, f.value))
         .collect();
-    assert!(values.iter().any(|(l, v)| *l == "Model" && v == "muse-spark-1.3"));
+    assert!(
+        values
+            .iter()
+            .any(|(l, v)| *l == "Model" && v == "muse-spark-1.3")
+    );
 }
 
 /// (e) Window narrower than INSPECTOR_MIN_WINDOW_WIDTH hides the inspector

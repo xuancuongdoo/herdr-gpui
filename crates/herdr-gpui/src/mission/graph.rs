@@ -38,14 +38,18 @@ pub struct MissionAgent {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum MissionAction {
-    Focus { pane: String },
+    Focus {
+        pane: String,
+    },
     Resume {
         identity_id: String,
         session_ref: String,
         method: String,
         path: String,
     },
-    Unavailable { reason: String },
+    Unavailable {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +69,7 @@ pub fn parse_graph(json: &str) -> Result<Vec<MissionAgent>, serde_json::Error> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -150,10 +155,7 @@ mod tests {
         assert!(a.identity_id.contains('/'));
         match &a.action {
             MissionAction::Resume { path, .. } => {
-                assert_eq!(
-                    path,
-                    "/missions/m-1/agents/m-1%2Fn-a%2Fagent-1/resume"
-                );
+                assert_eq!(path, "/missions/m-1/agents/m-1%2Fn-a%2Fagent-1/resume");
                 assert!(path.contains("%2F"), "path must stay encoded: {path}");
             }
             other => panic!("expected resume, got {other:?}"),

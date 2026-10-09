@@ -3,8 +3,8 @@ use super::model::{
     AgentSpec, DeviceSpec, SpaceSpec, TreeKey, TreeNode, TreeRow, build_agent_tree,
     has_orchestrator_role,
 };
-use std::collections::HashSet;
 use herdr_client::protocol::AgentStatus;
+use std::collections::HashSet;
 
 const SPACES: &[SpaceSpec<'static>] = &[
     SpaceSpec {
@@ -515,5 +515,3 @@ fn workers_keep_input_order_without_status_resort() {
     ];
     assert_eq!(panes(&tree(&rev)), vec!["p0", "p2", "p1"]);
 }
-
-

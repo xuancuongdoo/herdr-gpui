@@ -5,9 +5,8 @@ use super::{
     agents::{
         Indicators, agent_labels, agent_place, status_indicator, status_style, status_symbol,
     },
-    layout_tests,
-    render::header,
-    workspace_label,
+    frame::header,
+    layout_tests, workspace_label,
     workspaces::workspace_entries,
 };
 use crate::{

@@ -54,8 +54,8 @@ fn blank_role_and_model_leave_the_bare_name() {
 // Spacer contract (/tmp/guides-spacer/brief.md): blank guide-only rows
 // separate a device's children and wrap an expanded workspace's children
 // block, while a collapsed row sits tight with what follows.
-use super::spacer_between;
 use super::super::build_agent_tree;
+use super::spacer_between;
 use std::collections::HashSet;
 
 #[test]
@@ -191,13 +191,7 @@ fn filter_agent(
     name: &str,
     status: AgentStatus,
     tokens: &[(&str, &str)],
-) -> (
-    String,
-    String,
-    String,
-    Vec<(String, String)>,
-    AgentStatus,
-) {
+) -> (String, String, String, Vec<(String, String)>, AgentStatus) {
     (
         workspace.to_owned(),
         pane.to_owned(),
@@ -213,30 +207,60 @@ fn filter_agent(
 #[test]
 fn search_keeps_matching_worker_and_its_orchestrator() {
     let agents = vec![
-        filter_agent("w", "o1", "orchestrator", AgentStatus::Idle, &[("role", "orchestrator")]),
-        filter_agent("w", "w1", "rev-1354-worker", AgentStatus::Working, &[("parent", "o1")]),
-        filter_agent("w", "w2", "other-worker", AgentStatus::Working, &[("parent", "o1")]),
+        filter_agent(
+            "w",
+            "o1",
+            "orchestrator",
+            AgentStatus::Idle,
+            &[("role", "orchestrator")],
+        ),
+        filter_agent(
+            "w",
+            "w1",
+            "rev-1354-worker",
+            AgentStatus::Working,
+            &[("parent", "o1")],
+        ),
+        filter_agent(
+            "w",
+            "w2",
+            "other-worker",
+            AgentStatus::Working,
+            &[("parent", "o1")],
+        ),
     ];
     let visible = filter_visible(&agents, "rev-1354", StatusFilter::All);
-    let panes: Vec<&str> = visible
-        .iter()
-        .map(|agent| agent.1.as_str())
-        .collect();
+    let panes: Vec<&str> = visible.iter().map(|agent| agent.1.as_str()).collect();
     assert_eq!(panes, vec!["o1", "w1"]);
 }
 
 #[test]
 fn status_filter_drops_non_matching_statuses() {
     let agents = vec![
-        filter_agent("w", "o1", "orchestrator", AgentStatus::Idle, &[("role", "orchestrator")]),
-        filter_agent("w", "w1", "done-worker", AgentStatus::Done, &[("parent", "o1")]),
-        filter_agent("w", "w2", "idle-worker", AgentStatus::Idle, &[("parent", "o1")]),
+        filter_agent(
+            "w",
+            "o1",
+            "orchestrator",
+            AgentStatus::Idle,
+            &[("role", "orchestrator")],
+        ),
+        filter_agent(
+            "w",
+            "w1",
+            "done-worker",
+            AgentStatus::Done,
+            &[("parent", "o1")],
+        ),
+        filter_agent(
+            "w",
+            "w2",
+            "idle-worker",
+            AgentStatus::Idle,
+            &[("parent", "o1")],
+        ),
     ];
     let visible = filter_visible(&agents, "", StatusFilter::Done);
-    let panes: Vec<&str> = visible
-        .iter()
-        .map(|agent| agent.1.as_str())
-        .collect();
+    let panes: Vec<&str> = visible.iter().map(|agent| agent.1.as_str()).collect();
     // The done worker matches; its orchestrator stays as context, the idle
     // worker drops.
     assert_eq!(panes, vec!["o1", "w1"]);

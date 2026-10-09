@@ -1,6 +1,8 @@
 //! Agent tree for the sidebar `spaces` sort: device → space → orchestrator → workers.
 
-pub(crate) use legacy::{TreeNode, TreeRow, build_agent_tree, build_agent_tree_with_status};
+#[cfg(test)]
+pub(crate) use legacy::build_agent_tree_with_status;
+pub(crate) use legacy::{TreeNode, TreeRow, build_agent_tree};
 
 mod job;
 use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshot};
@@ -48,8 +50,8 @@ pub(super) fn is_orchestrator(snapshot: &ClientShellSnapshot, agent: &ClientShel
 
 /// The tree model: typed fold keys, borrowed inputs, one device per call.
 pub(crate) mod model {
-    use std::collections::HashSet;
     use herdr_client::protocol::AgentStatus;
+    use std::collections::HashSet;
 
     /// Done/idle worker groups under one orchestrator. Collapsed by default;
     /// the view stores expanded keys, so absence means folded.
@@ -611,13 +613,7 @@ mod legacy {
     /// means expanded; status groups are collapsed by default). Each device
     /// uses its label as endpoint ID; unlisted agents go to the last.
     type AgentTuple = (String, String, String, Vec<(String, String)>);
-    type AgentTupleWithStatus = (
-        String,
-        String,
-        String,
-        Vec<(String, String)>,
-        AgentStatus,
-    );
+    type AgentTupleWithStatus = (String, String, String, Vec<(String, String)>, AgentStatus);
 
     pub(crate) fn build_agent_tree(
         devices: &[(String, Vec<(String, String)>)],

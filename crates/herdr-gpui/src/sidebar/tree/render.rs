@@ -11,8 +11,8 @@ use super::super::{
     row::{RowKind, row_text},
     tokens::{ResolvedToken, agent_rows},
 };
-use super::model::{WorkerGroup, group_key_string};
 use super::legacy::build_agent_tree_with_status;
+use super::model::{WorkerGroup, group_key_string};
 use super::{TreeNode, TreeRow};
 use crate::sidebar::keys::{StatusFilter, matches_agent};
 use crate::{
@@ -23,7 +23,7 @@ use gpui::{prelude::*, *};
 use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshot};
 use std::collections::{HashMap, HashSet};
 use unicode_width::UnicodeWidthStr;
-
+type FilterAgent = (String, String, String, Vec<(String, String)>, AgentStatus);
 /// Guide prefix for a row: `│  `/blank per ancestor plus `├─ `/`└─ ` for
 /// itself. Fold parents keep only the ancestor guides so the vertical `│`
 /// stays continuous through rows like `│  ▾ REV-1354`.
@@ -406,22 +406,10 @@ fn tree_agent_row(
 /// stays when any of its workers matches. Group/job totals below therefore
 /// follow the filter.
 pub(in crate::sidebar) fn filter_visible(
-    agents: &[(
-        String,
-        String,
-        String,
-        Vec<(String, String)>,
-        AgentStatus,
-    )],
+    agents: &[FilterAgent],
     search: &str,
     filter: StatusFilter,
-) -> Vec<(
-    String,
-    String,
-    String,
-    Vec<(String, String)>,
-    AgentStatus,
-)> {
+) -> Vec<FilterAgent> {
     let mut keep: Vec<bool> = agents
         .iter()
         .map(|(_, _, name, _, status)| matches_agent(name, *status, search, filter))
@@ -456,11 +444,11 @@ pub(in crate::sidebar) fn filter_visible(
                         _ => None,
                     }
                 });
-            if let Some(j) = target {
-                if !keep[j] {
-                    keep[j] = true;
-                    changed = true;
-                }
+            if let Some(j) = target
+                && !keep[j]
+            {
+                keep[j] = true;
+                changed = true;
             }
         }
     }
@@ -480,10 +468,35 @@ pub(in crate::sidebar) fn visible_agent_panes(
     status_filter: StatusFilter,
     collapsed: &HashSet<String>,
 ) -> Vec<String> {
-    let devices = vec![(endpoint_label.to_owned(), snapshot.workspaces.iter().map(|w| (w.workspace_id.clone(), w.label.clone())).collect())];
-    let input: Vec<_> = snapshot.agents.iter().map(|agent| (agent.workspace_id.clone(), agent.pane_id.clone(), agent_name(agent).to_owned(), agent.tokens.clone(), agent.agent_status)).collect();
+    let devices = vec![(
+        endpoint_label.to_owned(),
+        snapshot
+            .workspaces
+            .iter()
+            .map(|w| (w.workspace_id.clone(), w.label.clone()))
+            .collect(),
+    )];
+    let input: Vec<_> = snapshot
+        .agents
+        .iter()
+        .map(|agent| {
+            (
+                agent.workspace_id.clone(),
+                agent.pane_id.clone(),
+                agent_name(agent).to_owned(),
+                agent.tokens.clone(),
+                agent.agent_status,
+            )
+        })
+        .collect();
     let visible = filter_visible(&input, search, status_filter);
-    build_agent_tree_with_status(&devices, &visible, collapsed).into_iter().filter_map(|row| match row.node { TreeNode::Agent { pane_id, .. } => Some(pane_id), _ => None }).collect()
+    build_agent_tree_with_status(&devices, &visible, collapsed)
+        .into_iter()
+        .filter_map(|row| match row.node {
+            TreeNode::Agent { pane_id, .. } => Some(pane_id),
+            _ => None,
+        })
+        .collect()
 }
 /// Renders the device → space → agent rows for one endpoint snapshot.
 /// Fold state comes from `GroupedCtx::collapsed` (`dev:`/`ws:`/`job:` keys
@@ -504,8 +517,7 @@ pub(in crate::sidebar) fn render_grouped(
             .collect::<Vec<_>>(),
     )];
     let input = filter_visible(
-        &ctx
-            .snapshot
+        &ctx.snapshot
             .agents
             .iter()
             .map(|agent| {
@@ -761,7 +773,13 @@ pub(in crate::sidebar) fn render_grouped(
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
                         .child(div().flex_none().child(label_text(&guide_text)))
-                        .child(div().flex_1().min_w_0().truncate().child(label_text(&label)))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .child(label_text(&label)),
+                        )
                         .id(SharedString::from(group_element_id(
                             ctx.endpoint_id,
                             workspace_id,

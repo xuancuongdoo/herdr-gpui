@@ -155,10 +155,7 @@ mod tests {
     }
 
     fn values(fields: &[InspectorField]) -> Vec<(&'static str, &str)> {
-        fields
-            .iter()
-            .map(|f| (f.label, f.value.as_str()))
-            .collect()
+        fields.iter().map(|f| (f.label, f.value.as_str())).collect()
     }
 
     #[test]

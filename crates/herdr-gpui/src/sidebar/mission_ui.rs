@@ -142,7 +142,7 @@ pub(crate) fn is_hibernated(agent: &crate::mission::graph::MissionAgent) -> bool
 
 /// Row suffix: `resuming…` while in flight, else the stored note
 /// (`session missing` / mismatch fields / stderr). `None` means no suffix.
-pub(crate) fn mission_row_suffix<'a>(inflight: bool, note: Option<&'a str>) -> Option<&'a str> {
+pub(crate) fn mission_row_suffix(inflight: bool, note: Option<&str>) -> Option<&str> {
     if inflight {
         Some(RESUMING_SUFFIX)
     } else {
@@ -158,6 +158,223 @@ pub(crate) fn mission_row_text(name: &str, suffix: Option<&str>) -> String {
     }
 }
 
+/// Note for one mission row: in-flight, lease, Unavailable reason, or stored
+/// outcome. `None` means no suffix.
+pub(crate) fn mission_row_note(
+    agent: &crate::mission::graph::MissionAgent,
+    inflight: &HashSet<String>,
+    notes: &std::collections::HashMap<String, String>,
+    disabled: &HashSet<String>,
+) -> Option<String> {
+    let stored: Option<&str> = if disabled.contains(&agent.identity_id) {
+        Some("resume in progress")
+    } else if let crate::mission::graph::MissionAction::Unavailable { reason } = &agent.action {
+        Some(unavailable_note(reason))
+    } else if matches!(
+        agent.action,
+        crate::mission::graph::MissionAction::Resume { .. }
+    ) && agent.spawner_pane.is_none()
+    {
+        Some("no spawner pane")
+    } else {
+        notes.get(&agent.identity_id).map(String::as_str)
+    };
+    mission_row_suffix(inflight.contains(&agent.identity_id), stored).map(str::to_owned)
+}
+
+impl crate::HerdrWindow {
+    /// Hibernated rows: `(mid, agent)` with `live_pane: None`, in fetch order.
+    /// ACTIVE identities stay on their live pane and are never duplicated here.
+    pub(crate) fn mission_hibernated(&self) -> Vec<(String, &crate::mission::graph::MissionAgent)> {
+        let fallback = self.mission_ids.first().cloned().unwrap_or_default();
+        self.mission_agents
+            .iter()
+            .filter(|a| is_hibernated(a))
+            .map(|a| {
+                let mid = self
+                    .mission_mid
+                    .get(&a.identity_id)
+                    .cloned()
+                    .unwrap_or_else(|| fallback.clone());
+                (mid, a)
+            })
+            .collect()
+    }
+
+    /// Interval refresh off the UI thread. No-op with no mission ids:
+    /// no mission rows and no polling.
+    pub(crate) fn start_mission_refresh(&self, cx: &mut gpui::Context<Self>) {
+        let mids = self.mission_ids.clone();
+        if mids.is_empty() {
+            return;
+        }
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs(5))
+                    .await;
+                let mids_loop = mids.clone();
+                let fetched = cx
+                    .background_executor()
+                    .spawn(async move {
+                        let mut out = Vec::new();
+                        for mid in &mids_loop {
+                            if let Ok(agents) = crate::mission::client::fetch_graph(mid) {
+                                out.push((mid.clone(), agents));
+                            }
+                        }
+                        out
+                    })
+                    .await;
+                let done = this.update(cx, |this, cx| {
+                    this.mission_agents = fetched.iter().flat_map(|(_, a)| a.clone()).collect();
+                    this.mission_mid = fetched
+                        .iter()
+                        .flat_map(|(m, a)| {
+                            a.iter().map(move |ag| (ag.identity_id.clone(), m.clone()))
+                        })
+                        .collect();
+                    cx.notify();
+                });
+                if done.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// Selection branch for a mission row (Enter/click).
+    pub(crate) fn select_mission_identity(
+        &mut self,
+        mid: &str,
+        identity_id: &str,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(agent) = self
+            .mission_agents
+            .iter()
+            .find(|a| a.identity_id == identity_id)
+            .cloned()
+        else {
+            return;
+        };
+        match &agent.action {
+            crate::mission::graph::MissionAction::Focus { pane } => {
+                let target =
+                    mission_focus_pane(agent.live_pane.as_deref()).unwrap_or(pane.as_str());
+                self.navigate(crate::navigation::NavigationTarget::Pane(target), cx);
+                window.focus(&self.focus, cx);
+            }
+            crate::mission::graph::MissionAction::Resume { .. } => {
+                if self.mission_disabled.contains(identity_id) {
+                    return;
+                }
+                if !is_selectable(&agent) {
+                    return;
+                }
+                let Some(spawner) = agent.spawner_pane.as_deref() else {
+                    return;
+                };
+                let mid_owned = mid.to_owned();
+                let id_owned = identity_id.to_owned();
+                let mut bg_slot = None;
+                if !launch_resume(
+                    |mut cmd| {
+                        bg_slot = Some(cx.background_executor().spawn(async move { cmd.output() }));
+                    },
+                    &mid_owned,
+                    &id_owned,
+                    // Never fall back to last_pane/live_pane.
+                    Some(spawner),
+                    &mut self.mission_inflight,
+                ) {
+                    return;
+                }
+                let Some(bg) = bg_slot else { return };
+                self.mission_notes.remove(&id_owned);
+                cx.notify();
+                cx.spawn_in(window, async move |this, cx| {
+                    let output = bg.await;
+                    let (code, stderr) = match &output {
+                        Ok(out) => (
+                            out.status.code(),
+                            String::from_utf8_lossy(&out.stderr).into_owned(),
+                        ),
+                        Err(e) => (None, e.to_string()),
+                    };
+                    let outcome = map_resume_exit(code, &stderr);
+                    if outcome == ResumeOutcome::Resumed {
+                        let mid2 = mid_owned.clone();
+                        let fresh = cx
+                            .background_executor()
+                            .spawn(async move {
+                                crate::mission::client::fetch_graph(&mid2).unwrap_or_default()
+                            })
+                            .await;
+                        let _ = this.update(cx, |this, cx| {
+                            finish_resume(&mut this.mission_inflight, &id_owned);
+                            this.mission_notes.remove(&id_owned);
+                            this.mission_disabled.remove(&id_owned);
+                            this.mission_agents.retain(|a| {
+                                this.mission_mid
+                                    .get(&a.identity_id)
+                                    .is_some_and(|m| m != &mid_owned)
+                            });
+                            for a in &fresh {
+                                this.mission_mid
+                                    .insert(a.identity_id.clone(), mid_owned.clone());
+                            }
+                            this.mission_agents.extend(fresh.clone());
+                            if let Some(pane) = this
+                                .mission_agents
+                                .iter()
+                                .find(|a| a.identity_id == id_owned)
+                                .and_then(|a| a.live_pane.clone())
+                            {
+                                this.navigate(
+                                    crate::navigation::NavigationTarget::Pane(pane.as_str()),
+                                    cx,
+                                );
+                            }
+                            cx.notify();
+                        });
+                    } else {
+                        let _ = this.update(cx, |this, cx| {
+                            finish_resume(&mut this.mission_inflight, &id_owned);
+                            match outcome {
+                                ResumeOutcome::SessionMissing => {
+                                    this.mission_notes
+                                        .insert(id_owned.clone(), "session missing".to_owned());
+                                }
+                                ResumeOutcome::LeaseHeld => {
+                                    this.mission_disabled.insert(id_owned.clone());
+                                    this.mission_notes.remove(&id_owned);
+                                }
+                                ResumeOutcome::Mismatch(detail) => {
+                                    this.mission_notes.insert(id_owned.clone(), detail);
+                                }
+                                ResumeOutcome::Failed(detail) => {
+                                    // 403 and other errors show as-is, never retried.
+                                    this.mission_notes.insert(id_owned.clone(), detail);
+                                }
+                                ResumeOutcome::Resumed => {}
+                            }
+                            cx.notify();
+                        });
+                    }
+                })
+                .detach();
+            }
+            crate::mission::graph::MissionAction::Unavailable { reason } => {
+                self.mission_notes
+                    .insert(identity_id.to_owned(), unavailable_note(reason).to_owned());
+                cx.notify();
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,11 +460,13 @@ mod tests {
     #[test]
     fn resume_command_args_with_and_without_spawner() {
         let plain = mission_resume_command("m1", "m1/n/a", None);
-        assert!(!plain
-            .get_program()
-            .to_string_lossy()
-            .into_owned()
-            .is_empty());
+        assert!(
+            !plain
+                .get_program()
+                .to_string_lossy()
+                .into_owned()
+                .is_empty()
+        );
         let args: Vec<_> = plain
             .get_args()
             .map(|a| a.to_string_lossy().into_owned())
@@ -367,224 +586,5 @@ mod tests {
             );
         }
         assert_eq!(spawns, 0);
-    }
-}
-
-/// Note for one mission row: in-flight, lease, Unavailable reason, or stored
-/// outcome. `None` means no suffix.
-pub(crate) fn mission_row_note(
-    agent: &crate::mission::graph::MissionAgent,
-    inflight: &HashSet<String>,
-    notes: &std::collections::HashMap<String, String>,
-    disabled: &HashSet<String>,
-) -> Option<String> {
-    let stored: Option<&str> = if disabled.contains(&agent.identity_id) {
-        Some("resume in progress")
-    } else if let crate::mission::graph::MissionAction::Unavailable { reason } = &agent.action {
-        Some(unavailable_note(reason))
-    } else if matches!(agent.action, crate::mission::graph::MissionAction::Resume { .. })
-        && agent.spawner_pane.is_none()
-    {
-        Some("no spawner pane")
-    } else {
-        notes.get(&agent.identity_id).map(String::as_str)
-    };
-    mission_row_suffix(inflight.contains(&agent.identity_id), stored).map(str::to_owned)
-}
-
-impl crate::HerdrWindow {
-    /// Hibernated rows: `(mid, agent)` with `live_pane: None`, in fetch order.
-    /// ACTIVE identities stay on their live pane and are never duplicated here.
-    pub(crate) fn mission_hibernated(
-        &self,
-    ) -> Vec<(String, &crate::mission::graph::MissionAgent)> {
-        let fallback = self.mission_ids.first().cloned().unwrap_or_default();
-        self.mission_agents
-            .iter()
-            .filter(|a| is_hibernated(a))
-            .map(|a| {
-                let mid = self
-                    .mission_mid
-                    .get(&a.identity_id)
-                    .cloned()
-                    .unwrap_or_else(|| fallback.clone());
-                (mid, a)
-            })
-            .collect()
-    }
-
-    /// Interval refresh off the UI thread. No-op with no mission ids:
-    /// no mission rows and no polling.
-    pub(crate) fn start_mission_refresh(&self, cx: &mut gpui::Context<Self>) {
-        let mids = self.mission_ids.clone();
-        if mids.is_empty() {
-            return;
-        }
-        cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor()
-                    .timer(std::time::Duration::from_secs(5))
-                    .await;
-                let mids_loop = mids.clone();
-                let fetched = cx
-                    .background_executor()
-                    .spawn(async move {
-                        let mut out = Vec::new();
-                        for mid in &mids_loop {
-                            if let Ok(agents) = crate::mission::client::fetch_graph(mid) {
-                                out.push((mid.clone(), agents));
-                            }
-                        }
-                        out
-                    })
-                    .await;
-                let done = this.update(cx, |this, cx| {
-                    this.mission_agents =
-                        fetched.iter().flat_map(|(_, a)| a.clone()).collect();
-                    this.mission_mid = fetched
-                        .iter()
-                        .flat_map(|(m, a)| {
-                            a.iter().map(move |ag| (ag.identity_id.clone(), m.clone()))
-                        })
-                        .collect();
-                    cx.notify();
-                });
-                if done.is_err() {
-                    break;
-                }
-            }
-        })
-        .detach();
-    }
-
-    /// Selection branch for a mission row (Enter/click).
-    pub(crate) fn select_mission_identity(
-        &mut self,
-        mid: &str,
-        identity_id: &str,
-        window: &mut gpui::Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        let Some(agent) = self
-            .mission_agents
-            .iter()
-            .find(|a| a.identity_id == identity_id)
-            .cloned()
-        else {
-            return;
-        };
-        match &agent.action {
-            crate::mission::graph::MissionAction::Focus { pane } => {
-                let target = mission_focus_pane(agent.live_pane.as_deref()).unwrap_or(pane.as_str());
-                self.navigate(
-                    crate::navigation::NavigationTarget::Pane(target),
-                    cx,
-                );
-                window.focus(&self.focus, cx);
-            }
-            crate::mission::graph::MissionAction::Resume { .. } => {
-                if self.mission_disabled.contains(identity_id) {
-                    return;
-                }
-                if !is_selectable(&agent) {
-                    return;
-                }
-                let Some(spawner) = agent.spawner_pane.as_deref() else {
-                    return;
-                };
-                let mid_owned = mid.to_owned();
-                let id_owned = identity_id.to_owned();
-                let mut bg_slot = None;
-                if !launch_resume(
-                    |mut cmd| {
-                        bg_slot = Some(cx.background_executor().spawn(async move { cmd.output() }));
-                    },
-                    &mid_owned,
-                    &id_owned,
-                    // Never fall back to last_pane/live_pane.
-                    Some(spawner),
-                    &mut self.mission_inflight,
-                ) {
-                    return;
-                }
-                let Some(bg) = bg_slot else { return };
-                self.mission_notes.remove(&id_owned);
-                cx.notify();
-                cx.spawn_in(window, async move |this, cx| {
-                    let output = bg.await;
-                    let (code, stderr) = match &output {
-                        Ok(out) => (
-                            out.status.code(),
-                            String::from_utf8_lossy(&out.stderr).into_owned(),
-                        ),
-                        Err(e) => (None, e.to_string()),
-                    };
-                    let outcome = map_resume_exit(code, &stderr);
-                    if outcome == ResumeOutcome::Resumed {
-                        let mid2 = mid_owned.clone();
-                        let fresh = cx
-                            .background_executor()
-                            .spawn(async move {
-                                crate::mission::client::fetch_graph(&mid2).unwrap_or_default()
-                            })
-                            .await;
-                        let _ = this.update(cx, |this, cx| {
-                            finish_resume(&mut this.mission_inflight, &id_owned);
-                            this.mission_notes.remove(&id_owned);
-                            this.mission_disabled.remove(&id_owned);
-                            this.mission_agents
-                                .retain(|a| this.mission_mid.get(&a.identity_id).is_some_and(|m| m != &mid_owned));
-                            for a in &fresh {
-                                this.mission_mid.insert(a.identity_id.clone(), mid_owned.clone());
-                            }
-                            this.mission_agents.extend(fresh.clone());
-                            if let Some(pane) = this
-                                .mission_agents
-                                .iter()
-                                .find(|a| a.identity_id == id_owned)
-                                .and_then(|a| a.live_pane.clone())
-                            {
-                                this.navigate(
-                                    crate::navigation::NavigationTarget::Pane(pane.as_str()),
-                                    cx,
-                                );
-                            }
-                            cx.notify();
-                        });
-                    } else {
-                        let _ = this.update(cx, |this, cx| {
-                            finish_resume(&mut this.mission_inflight, &id_owned);
-                            match outcome {
-                                ResumeOutcome::SessionMissing => {
-                                    this.mission_notes.insert(
-                                        id_owned.clone(),
-                                        "session missing".to_owned(),
-                                    );
-                                }
-                                ResumeOutcome::LeaseHeld => {
-                                    this.mission_disabled.insert(id_owned.clone());
-                                    this.mission_notes.remove(&id_owned);
-                                }
-                                ResumeOutcome::Mismatch(detail) => {
-                                    this.mission_notes.insert(id_owned.clone(), detail);
-                                }
-                                ResumeOutcome::Failed(detail) => {
-                                    // 403 and other errors show as-is, never retried.
-                                    this.mission_notes.insert(id_owned.clone(), detail);
-                                }
-                                ResumeOutcome::Resumed => {}
-                            }
-                            cx.notify();
-                        });
-                    }
-                })
-                .detach();
-            }
-            crate::mission::graph::MissionAction::Unavailable { reason } => {
-                self.mission_notes
-                    .insert(identity_id.to_owned(), unavailable_note(&reason).to_owned());
-                cx.notify();
-            }
-        }
     }
 }

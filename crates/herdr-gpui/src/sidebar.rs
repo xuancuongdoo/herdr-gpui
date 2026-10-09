@@ -3,6 +3,7 @@
 
 mod agents;
 mod cell;
+mod frame;
 mod hover;
 pub(crate) mod inspector;
 mod inspector_fields;

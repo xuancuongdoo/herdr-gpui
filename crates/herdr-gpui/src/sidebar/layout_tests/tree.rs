@@ -161,7 +161,7 @@ fn query_down_enter_stays_on_a_visible_agent(cx: &mut gpui::TestAppContext) {
     });
     cx.run_until_parked();
     redraw(cx);
-     cx.simulate_keystrokes("down enter");
+    cx.simulate_keystrokes("down enter");
     cx.update(|window, cx| {
         let this = view.read(cx);
         assert_eq!(this.sidebar_selected, 0);

@@ -8,13 +8,15 @@ use std::path::PathBuf;
 /// Default missiond socket: `~/.herdr/missiond.sock`.
 /// Override with non-empty `HERDR_MISSIOND_SOCK`.
 pub fn socket_path() -> PathBuf {
-    if let Ok(p) = std::env::var("HERDR_MISSIOND_SOCK") {
-        if !p.trim().is_empty() {
-            return PathBuf::from(p);
-        }
+    if let Ok(p) = std::env::var("HERDR_MISSIOND_SOCK")
+        && !p.trim().is_empty()
+    {
+        return PathBuf::from(p);
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    std::path::Path::new(&home).join(".herdr").join("missiond.sock")
+    std::path::Path::new(&home)
+        .join(".herdr")
+        .join("missiond.sock")
 }
 
 /// Fetch and parse `GET /missions/<mid>/graph` agents.

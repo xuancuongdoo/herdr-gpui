@@ -64,7 +64,12 @@ fn sorted_window(
     (view, cx)
 }
 
-fn assert_above(cx: &mut gpui::VisualTestContext, upper: &'static str, lower: &'static str, why: &str) {
+fn assert_above(
+    cx: &mut gpui::VisualTestContext,
+    upper: &'static str,
+    lower: &'static str,
+    why: &str,
+) {
     let top = cx.debug_bounds(upper).unwrap().top();
     let bottom = cx.debug_bounds(lower).unwrap().top();
     assert!(top < bottom, "{upper} must render above {lower}: {why}");
@@ -83,7 +88,10 @@ fn workers_listed_first_render_orchestrator_first(cx: &mut gpui::TestAppContext)
 /// the ticket job group, then the workers.
 #[test]
 fn workers_listed_first_keep_orchestrator_above_job_group() {
-    let devices = vec![("Local".to_owned(), vec![("w0".to_owned(), "herdr".to_owned())])];
+    let devices = vec![(
+        "Local".to_owned(),
+        vec![("w0".to_owned(), "herdr".to_owned())],
+    )];
     let tokens = |pairs: &[(&str, &str)]| {
         pairs
             .iter()
@@ -162,5 +170,10 @@ fn lone_orchestrator_still_first(cx: &mut gpui::TestAppContext) {
     fixture.agents[1].workspace_id = "w0".into();
     fixture.agents[1].tokens = tokens(&[("role", "ORCH")]);
     let (_, cx) = sorted_window(fixture, AgentSort::Grouped, cx);
-    assert_above(cx, "row-agent-p1", "row-agent-p0", "lone orchestrator first");
+    assert_above(
+        cx,
+        "row-agent-p1",
+        "row-agent-p0",
+        "lone orchestrator first",
+    );
 }
