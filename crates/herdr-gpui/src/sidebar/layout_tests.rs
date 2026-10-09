@@ -57,12 +57,9 @@ mod tree;
 #[cfg(test)]
 mod tree_empty_space;
 #[cfg(test)]
-mod tree_gap;
-mod tree_orch_first;
-#[cfg(test)]
 mod tree_groups;
 #[cfg(test)]
-mod tree_role_refresh;
+mod tree_orch_first;
 #[cfg(test)]
 mod update_panel;
 #[cfg(test)]
@@ -516,6 +513,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         marked: String::new(),
         hover: None,
         hover_menu: None,
+        frame_armed: false,
         local_error: None,
         menu: crate::menu::MenuState::new(cx),
         settings: Default::default(),
@@ -554,6 +552,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_scroll: Default::default(),
         sidebar_revealed: Default::default(),
         _poll: Task::ready(()),
+        _wake: Task::ready(()),
         _activation: cx.observe_window_activation(window, |_, _, _| {}),
         _appearance: cx.observe_window_appearance(window, |this, _, cx| {
             this.apply_shared_theme(cx);

@@ -81,8 +81,8 @@ impl HerdrWindow {
     }
 
     /// Open the hovered row's menu once the pointer has settled on it. Called
-    /// from the frame poll with that frame's time, so the dwell is testable
-    /// without waiting for it.
+    /// from the frame poll and the dwell's one-shot timer with that moment's
+    /// time, so the dwell is testable without waiting for it.
     pub(crate) fn poll_hover_menu(
         &mut self,
         now: Instant,
@@ -112,9 +112,20 @@ impl HerdrWindow {
             hover.position = position;
             hover.since = now;
             hover.moved = true;
+            // Dwell restarted: a one-shot timer fires it on time without
+            // holding the display-rate frame loop open while idle.
+            cx.spawn_in(window, async move |this, cx| {
+                cx.background_executor().timer(HOVER_MENU_DELAY).await;
+                let _ = this.update_in(cx, |view, window, cx| {
+                    view.poll_hover_menu(Instant::now(), window, cx);
+                });
+            })
+            .detach();
             return;
         }
         if !hover.moved || now.saturating_duration_since(hover.since) < HOVER_MENU_DELAY {
+            // Dwell still pending: the restart's one-shot timer fires it, so
+            // a resting pointer holds no frame loop open.
             return;
         }
         // One shot: the pointer must enter a row again before another menu opens,

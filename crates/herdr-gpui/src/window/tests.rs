@@ -339,3 +339,24 @@ fn host_theme_reaches_each_connection_and_follows_theme_changes(cx: &mut gpui::T
     assert_eq!(theme_updates(&mut replacement_server, 4).len(), 4);
     assert_quiet(&replacement, &mut replacement_server);
 }
+
+/// A second arm while armed registers nothing: input bursts share the one
+/// queued callback instead of stacking a chain per event (perf N1/N3).
+/// Arms go through `arm_frame` from `&mut self`, so arming never re-enters
+/// the entity the way a registration-time check through the context would.
+/// The frame callback disarms before deciding to re-arm.
+#[gpui::test]
+fn frame_poll_second_arm_while_armed_is_a_noop(cx: &mut gpui::TestAppContext) {
+    let (view, cx) = cx.add_window_view(fixture_window);
+    view.read_with(cx, |view, _| assert!(!view.frame_armed));
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| view.arm_frame(window, cx));
+    });
+    view.read_with(cx, |view, _| assert!(view.frame_armed));
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| view.arm_frame(window, cx));
+    });
+    view.read_with(cx, |view, _| {
+        assert!(view.frame_armed, "still the one armed callback");
+    });
+}

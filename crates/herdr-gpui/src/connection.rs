@@ -12,6 +12,7 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
+use std::task::Waker;
 
 pub(crate) struct ConnectionBridge {
     pub target: ConnectTarget,
@@ -23,6 +24,11 @@ pub(crate) struct ConnectionBridge {
     /// Scrollback answers, fenced with the connection like the main inbox.
     pub scrollback: Arc<Mutex<crate::scrollback::Inbox>>,
     sound_cancel: Arc<AtomicBool>,
+    /// Idle frame-loop wake, parked here because the event reader thread owns
+    /// no GPUI handle. `notified` coalesces bursts; `reset` retains both so a
+    /// reconnect never orphans the window's wait.
+    pub wake: Arc<Mutex<Option<Waker>>>,
+    pub notified: Arc<AtomicBool>,
 }
 
 /// One integration operation, independent of the modal dialog response slot.
@@ -105,6 +111,8 @@ impl ConnectionBridge {
             integrations: Arc::default(),
             links: Arc::default(),
             scrollback: Arc::default(),
+            wake: Arc::default(),
+            notified: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -128,6 +136,8 @@ impl ConnectionBridge {
         self.integrations = Arc::default();
         self.links = Arc::default();
         self.scrollback = Arc::default();
+        // The idle wake slots are retained on purpose: the window's wait and
+        // both reader generations share them across a reconnect.
     }
 
     pub fn detach(&mut self, active: bool) {
@@ -155,6 +165,8 @@ impl ConnectionBridge {
         self.drained = Arc::new(AtomicBool::new(false));
         let target = self.target.clone();
         let startup_inbox = self.inbox.clone();
+        let startup_wake = self.wake.clone();
+        let startup_notified = self.notified.clone();
         let result =
             connect_with_connector(target, options, surface_active, move |target, stop| {
                 let result = crate::daemon::connect(target, stop, || {
@@ -163,12 +175,14 @@ impl ConnectionBridge {
                         && state.status == ConnectionStatus::Connecting
                     {
                         state.daemon_starting();
+                        Self::signal_wake(&startup_wake, &startup_notified);
                     }
                 })
                 .map(|(stream, local)| {
                     if let Ok(mut state) = startup_inbox.lock() {
                         state.local_daemon_peer = local;
                         state.dirty = true;
+                        Self::signal_wake(&startup_wake, &startup_notified);
                     }
                     stream
                 });
@@ -188,6 +202,7 @@ impl ConnectionBridge {
                 {
                     state.missing_installation = true;
                     state.dirty = true;
+                    Self::signal_wake(&startup_wake, &startup_notified);
                 }
                 result
             })
@@ -199,6 +214,8 @@ impl ConnectionBridge {
                 let integrations = self.integrations.clone();
                 let links = self.links.clone();
                 let scrollback = self.scrollback.clone();
+                let reader_wake = self.wake.clone();
+                let reader_notified = self.notified.clone();
                 // Drain ordered events even while GPUI is busy; retain only coherent state.
                 spawn(Box::new(move || {
                     while let Ok(event) = client.events.recv() {
@@ -226,6 +243,7 @@ impl ConnectionBridge {
                                 // holds, but the window polls only when it is dirty.
                                 None => state.dirty = true,
                             }
+                            Self::signal_wake(&reader_wake, &reader_notified);
                         }
                     }
                     drained.store(true, Ordering::Release);
@@ -246,7 +264,20 @@ impl ConnectionBridge {
                 state.apply(ClientEvent::Disconnected {
                     reason: error.to_string(),
                 });
+                Self::signal_wake(&self.wake, &self.notified);
             }
+        }
+    }
+
+    /// Wake the window's idle frame loop after the inbox turns dirty. The
+    /// reader thread owns no GPUI handle, so it parks the task waker here;
+    /// `notified` coalesces bursts into one re-arm.
+    fn signal_wake(wake: &Arc<Mutex<Option<Waker>>>, notified: &Arc<AtomicBool>) {
+        notified.store(true, Ordering::Release);
+        if let Ok(guard) = wake.lock()
+            && let Some(waker) = guard.as_ref()
+        {
+            waker.wake_by_ref();
         }
     }
 

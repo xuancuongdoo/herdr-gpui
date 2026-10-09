@@ -304,6 +304,40 @@ fn the_probe_cache_is_bounded() {
 }
 
 #[test]
+fn unchanged_listings_skip_the_scan_and_changed_ones_do_not() {
+    let mut git = Git::default();
+    let now = Instant::now();
+    // Nothing tracked yet, so the first tick must rebuild and track.
+    assert!(!git.should_skip_listed(None, 7, true, now));
+    git.track_listed([input("a"), input("b")], true, now);
+    git.set_listed_key(None, 7, true);
+    // Same tick, scan not due: skip both the rebuild and `track_listed`.
+    assert!(git.should_skip_listed(None, 7, true, now));
+    // Changed inputs (new key) must re-track even before the next scan.
+    assert!(!git.should_skip_listed(None, 8, true, now));
+    git.track_listed([input("a")], true, now);
+    assert_eq!(
+        git.queue.iter().cloned().collect::<Vec<_>>(),
+        vec![input("a")],
+        "a changed listing forgets the gone workspace at once"
+    );
+    // A due scan must re-track even when the inputs are unchanged, so stale
+    // probes still refresh on their intervals.
+    assert!(!git.should_skip_listed(None, 7, true, now + SCAN_INTERVAL));
+    // An inactive window queues nothing, so the same key skips regardless.
+    git.set_listed_key(None, 7, false);
+    assert!(git.should_skip_listed(None, 7, false, now + SCAN_INTERVAL));
+    // A new snapshot `Arc` must rebuild even when the flags match: the
+    // retained `Arc` pins the old address, so a reused address can never
+    // compare equal.
+    let first = Arc::new(crate::sidebar::layout_tests::snapshot(1));
+    let second = Arc::new(crate::sidebar::layout_tests::snapshot(1));
+    git.set_listed_key(Some(first.clone()), 7, true);
+    assert!(git.should_skip_listed(Some(&first), 7, true, now));
+    assert!(!git.should_skip_listed(Some(&second), 7, true, now));
+}
+
+#[test]
 fn a_stopped_worker_is_reported_and_does_not_strand_an_action() {
     let mut peer = Peer::new();
     let now = Instant::now();

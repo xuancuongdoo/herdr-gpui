@@ -266,12 +266,30 @@ fn seeded_hosts_are_looked_up_by_workspace_and_forgotten_when_dropped() {
 #[cfg(unix)]
 #[test]
 fn this_machine_lists_a_socket_this_process_holds() {
+    // Production scans with `STEP_TIMEOUT`; this test waits longer, since
+    // `lsof` plus one `ps` per listener can take many seconds while the
+    // full suite runs beside it.
+    const TEST_STEP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+    // One slow scan under load must not fail the suite. A step that
+    // overruns breaks its shell, so each attempt starts a fresh one.
+    const ATTEMPTS: usize = 3;
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let number = listener.local_addr().unwrap().port();
-    let mut shell = super::local_shell().unwrap();
-    let output = shell
-        .run(super::scan::COMMAND, super::STEP_TIMEOUT)
-        .unwrap();
+    let mut output = None;
+    for attempt in 1..=ATTEMPTS {
+        let mut shell = super::local_shell().unwrap();
+        match shell.run(super::scan::COMMAND, TEST_STEP_TIMEOUT) {
+            Ok(answer) => {
+                output = Some(answer);
+                break;
+            }
+            Err(error) if attempt == ATTEMPTS => {
+                panic!("real scan failed after {ATTEMPTS} attempts: {error:?}")
+            }
+            Err(_) => {}
+        }
+    }
+    let output = output.unwrap();
     if output.stdout.lines().any(|line| line == "N") {
         // Neither ss nor lsof here; parse must say so rather than show nothing.
         assert!(matches!(

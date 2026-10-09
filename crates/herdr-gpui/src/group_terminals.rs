@@ -336,9 +336,11 @@ impl HerdrWindow {
 
     /// Takes each parked connection's latest projection. Notifications and
     /// sounds reach every client, so only the window's own connection
-    /// delivers them. Returns whether a parked group needs a redraw.
-    pub(crate) fn poll_group_terminals(&mut self) -> bool {
-        let mut changed = false;
+    /// delivers them. Returns whether a parked group needs a redraw: only
+    /// when an updated tab is actually painted. Output for any other tab,
+    /// or another workspace, still drains but never redraws the window.
+    pub(crate) fn poll_group_terminals(&mut self, cx: &App) -> bool {
+        let mut updated: Vec<GroupId> = Vec::new();
         let now = Instant::now();
         let terminals = &mut self.browser.terminals;
         for parked in &mut terminals.parked {
@@ -354,7 +356,7 @@ impl HerdrWindow {
                 update.window_title = None;
                 update.dialog_response = None;
                 parked.live = update;
-                changed = true;
+                updated.push(parked.group);
             }
         }
         // A connection that went down tries again later rather than on
@@ -370,12 +372,58 @@ impl HerdrWindow {
             })
             .map(|parked| parked.group)
             .collect();
+        let mut changed = false;
         for group in failed {
             terminals.parked.retain(|parked| parked.group != group);
             terminals.retry.push((group, now + RETRY_AFTER));
             changed = true;
         }
+        for group in updated {
+            if self.parked_visible(group, cx) {
+                changed = true;
+                break;
+            }
+        }
         changed
+    }
+
+    /// Whether `group`'s parked tab is painted anywhere: its own group
+    /// through its parked connection, or another group mirroring the tab.
+    /// Anything else — another workspace, a page, or a tab no group shows —
+    /// changes nothing on screen, so its output must not redraw the window.
+    fn parked_visible(&self, group: GroupId, cx: &App) -> bool {
+        let Some(key) = self.browser_key() else {
+            return false;
+        };
+        let Some(parked) = self
+            .browser
+            .terminals
+            .parked
+            .iter()
+            .find(|parked| parked.group == group)
+        else {
+            return false;
+        };
+        if parked.workspace != key {
+            return false;
+        }
+        if self.shows_parked_terminal(group, cx) {
+            return true;
+        }
+        let Some(tab) = parked.focused_tab() else {
+            return false;
+        };
+        // The window's own connection paints the focused tab; a parked
+        // frame for it is never drawn.
+        if self.focused_herdr_tab() == Some(tab) {
+            return false;
+        }
+        self.group_slots().iter().any(|slot| {
+            matches!(
+                self.group_shown(slot.id, cx),
+                Shown::Elsewhere(Pick::Herdr(mirror)) if mirror.as_str() == tab
+            )
+        })
     }
 
     /// Gives the window's connection to `group`, parking the one it held
@@ -670,6 +718,8 @@ impl HerdrWindow {
     }
 }
 
+#[cfg(test)]
+mod redraw_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
