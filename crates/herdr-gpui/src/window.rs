@@ -21,6 +21,7 @@ mod input;
 mod lifecycle;
 mod links;
 pub(crate) use links::PressedLink;
+mod monitors;
 mod mouse;
 mod pending_input;
 mod plugin_selection;
@@ -65,6 +66,7 @@ use crate::{
     terminal_painter, updater,
 };
 use gpui::{prelude::*, *};
+
 use herdr_client::{ConnectOptions, ConnectTarget};
 #[cfg(feature = "integration-test")]
 use std::sync::Arc;
@@ -168,6 +170,9 @@ pub(crate) struct HerdrWindow {
     pub(crate) hover: Option<sidebar::HoverRest>,
     /// The menu that resting opened, which the pointer closes by leaving it.
     pub(crate) hover_menu: Option<sidebar::HoverMenu>,
+    /// Whether a per-frame poll is already queued. `poll_on_frame` is a
+    /// no-op while this holds, so input bursts share one frame callback.
+    pub(crate) frame_armed: bool,
     pub(crate) local_error: Option<String>,
     pub(crate) menu: menu::MenuState,
     /// A `worktree.remove` queued after its dialog closed.
@@ -267,6 +272,10 @@ pub(crate) struct HerdrWindow {
     pub(crate) sidebar_pin_reveal: std::cell::Cell<Option<usize>>,
     pub(crate) sidebar_search: sidebar::SidebarSearch,
     pub(crate) _poll: Task<()>,
+    /// Idle event wake: re-arms the fast per-frame path when the reader
+    /// marks an inbox dirty. The 500 ms timer stays as the missed-wake
+    /// fallback; this task never ticks on its own.
+    pub(crate) _wake: Task<()>,
     pub(crate) _activation: Subscription,
     pub(crate) _appearance: Subscription,
     /// The sidebar as a cached view; see `sidebar::SidebarView`.
@@ -349,22 +358,46 @@ impl HerdrWindow {
 
     /// Runs every display frame while the window draws, so a new surface is
     /// shown on the refresh it arrives for instead of on the next timer tick.
-    fn poll_on_frame(this: WeakEntity<Self>, window: &mut Window) {
+    /// The callback disarms before deciding to re-arm; arms go through
+    /// `arm_frame`, so concurrent callers share the one queued callback
+    /// instead of stacking a chain per event. The hover dwell fires from its
+    /// own one-shot timer (see `poll_hover_menu`), so a resting pointer arms
+    /// nothing here.
+    pub(crate) fn poll_on_frame(this: WeakEntity<Self>, window: &mut Window) {
         window.on_next_frame(move |window, cx| {
-            let alive = this.update(cx, |view, cx| {
-                if view
-                    .endpoints
-                    .iter()
-                    .any(|endpoint| endpoint.connection.has_update())
-                    || view.group_terminals_updated()
-                {
-                    view.tick(window, cx);
-                }
-            });
-            if alive.is_ok() {
+            let ticked = this
+                .update(cx, |view, cx| {
+                    view.frame_armed = false;
+                    if view
+                        .endpoints
+                        .iter()
+                        .any(|endpoint| endpoint.connection.has_update())
+                        || view.group_terminals_updated()
+                        || view.hover_menu.is_some()
+                    {
+                        view.tick(window, cx);
+                        view.frame_armed = true;
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .unwrap_or(false);
+            // Idle: stop re-arming so the frame source can sleep; the slow
+            // timer re-wakes this fast path when new output arrives.
+            if ticked {
                 Self::poll_on_frame(this, window);
             }
         });
+    }
+
+    /// Queue a per-frame poll unless one is already queued. Every caller
+    /// holds `&mut self` already, so this never re-enters the entity the
+    /// way a registration-time check through the context would.
+    fn arm_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !std::mem::replace(&mut self.frame_armed, true) {
+            Self::poll_on_frame(cx.entity().downgrade(), window);
+        }
     }
 
     /// Stored chrome yields to anything changed before it arrived. A stored
@@ -453,7 +486,7 @@ impl HerdrWindow {
         }
         // After the focus check: a swap replaces `live` with another
         // connection's, which is not a move of this one's focus.
-        if self.poll_group_terminals() {
+        if self.poll_group_terminals(cx) {
             self.redraw_terminal(cx);
         }
         self.reconcile_group_terminals(cx);
@@ -527,80 +560,6 @@ impl HerdrWindow {
         self.sync_window_title(window);
     }
 
-    /// Plan usage follows the selected host: a remote host reports its own
-    /// agents' sign-ins, never this machine's.
-    fn update_usage(&mut self, cx: &mut Context<Self>) -> bool {
-        let host = self
-            .config
-            .usage
-            .show
-            .then(|| self.endpoints.get(self.selected_endpoint))
-            .flatten()
-            .and_then(|endpoint| crate::usage::Host::of(&endpoint.connection.target));
-        let granted = crate::usage::KeychainGrants::granted(cx);
-        let changed = self.usage.poll(
-            host,
-            &self.config.usage,
-            &granted,
-            self.config_load_revision,
-            self.active,
-            std::time::Instant::now(),
-        );
-        // A denied prompt takes the grant back, so a later launch does not
-        // ask again in the background.
-        for provider in self.usage.take_denied() {
-            crate::usage::KeychainGrants::revoke(provider, cx);
-        }
-        changed
-    }
-
-    /// CPU and memory are sampled for every enabled host, while they are
-    /// shown, a Devices overview is open, or a host picker ranks hosts by them.
-    fn update_system_load(&mut self) -> bool {
-        if !self.config.show_system_load
-            && !self.devices_overview_open()
-            && !self.dispatch_sampling()
-        {
-            return self.system_load.poll(Vec::new());
-        }
-        let hosts = self.watched_hosts();
-        self.system_load.poll(hosts)
-    }
-
-    /// Listening ports are scanned on the same hosts as CPU and memory.
-    fn update_listening_ports(&mut self) -> bool {
-        if !self.config.show_listening_ports {
-            self.tunnels = Default::default();
-            return self.listening_ports.poll(Vec::new());
-        }
-        let hosts = self.watched_hosts();
-        let changed = self.listening_ports.poll(hosts);
-        // A tunnel lives as long as its remote port is listed.
-        let ports = &self.listening_ports;
-        self.tunnels
-            .retain(|key| ports.listening(&crate::usage::Host::Ssh(key.target.clone()), key.port));
-        changed
-    }
-
-    /// The machines background monitors watch: this one always, a remote
-    /// host while it is connected, so a dropped host is not dialled every
-    /// few seconds.
-    fn watched_hosts(&self) -> Vec<crate::usage::Host> {
-        self.endpoints
-            .iter()
-            .enumerate()
-            .filter(|(index, endpoint)| {
-                let live = if *index == self.selected_endpoint {
-                    &self.live
-                } else {
-                    &endpoint.live
-                };
-                endpoint.enabled
-                    && (live.status.is_connected() || !endpoint.connection.target.is_remote())
-            })
-            .filter_map(|(_, endpoint)| crate::usage::Host::of(&endpoint.connection.target))
-            .collect()
-    }
 
     /// Agent turns are watched on every enabled, connected host this client
     /// may run Git on, and finished restores are reported wherever the user is.
@@ -711,9 +670,73 @@ impl HerdrWindow {
         let timer = cx.background_executor().clone();
         let poll = cx.spawn_in(window, async move |this, cx| {
             loop {
-                timer.timer(Duration::from_millis(16)).await;
+                timer.timer(Duration::from_millis(500)).await;
                 if this
-                    .update_in(cx, |this, window, cx| this.tick(window, cx))
+                    .update_in(cx, |this, window, cx| {
+                        this.tick(window, cx);
+                        // Re-wake the fast per-frame path (idle probe); a
+                        // second arm while one is queued is a no-op.
+                        this.arm_frame(window, cx);
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+        let wake = cx.spawn_in(window, async move |this, cx| {
+            loop {
+                // Snapshot the current wake slots; endpoints can reconnect.
+                let wakes = match this.update_in(cx, |this, _, _| {
+                    this.endpoints
+                        .iter()
+                        .map(|endpoint| {
+                            (
+                                endpoint.connection.wake.clone(),
+                                endpoint.connection.notified.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                }) {
+                    Ok(wakes) => wakes,
+                    Err(_) => break,
+                };
+                // Wait until any connection marks its inbox dirty. Checking the
+                // flag before and after parking the waker closes the race with
+                // the reader thread; bursts coalesce into one re-arm.
+                std::future::poll_fn(|ctx| {
+                    let mut fired = false;
+                    for (_, notified) in &wakes {
+                        if notified.swap(false, std::sync::atomic::Ordering::AcqRel) {
+                            fired = true;
+                        }
+                    }
+                    if fired {
+                        return std::task::Poll::Ready(());
+                    }
+                    for (slot, _) in &wakes {
+                        if let Ok(mut pending) = slot.lock() {
+                            *pending = Some(ctx.waker().clone());
+                        }
+                    }
+                    fired = false;
+                    for (_, notified) in &wakes {
+                        if notified.swap(false, std::sync::atomic::Ordering::AcqRel) {
+                            fired = true;
+                        }
+                    }
+                    if fired {
+                        std::task::Poll::Ready(())
+                    } else {
+                        std::task::Poll::Pending
+                    }
+                })
+                .await;
+                // Re-arm the fast per-frame path; an arm while one is queued is a no-op.
+                if this
+                    .update_in(cx, |view, window, cx| {
+                        view.arm_frame(window, cx);
+                    })
                     .is_err()
                 {
                     break;
@@ -805,6 +828,7 @@ impl HerdrWindow {
             marked_selection: None,
             hover: None,
             hover_menu: None,
+            frame_armed: false,
             local_error: error,
             menu: menu::MenuState::new(cx),
             removal: None,
@@ -860,6 +884,7 @@ impl HerdrWindow {
             sidebar_pin_reveal: Default::default(),
             sidebar_search: sidebar::SidebarSearch::new(cx),
             _poll: poll,
+            _wake: wake,
             sidebar_view,
             surface_signal: cx.new(|_| SurfaceSignal),
             _sidebar_invalidation: Self::invalidate_sidebar(cx),
@@ -907,6 +932,7 @@ impl HerdrWindow {
         #[cfg(feature = "integration-test")]
         if sidebar_test {
             this._poll = Task::ready(());
+            this._wake = Task::ready(());
             this.live.snapshot = Some(Arc::new(sidebar::layout_tests::snapshot(40)));
             this.endpoints[0].live = this.live.clone();
             if let Ok(mut inbox) = this.endpoints[0].connection.inbox.lock() {
@@ -914,7 +940,7 @@ impl HerdrWindow {
             }
             return this;
         }
-        Self::poll_on_frame(cx.entity().downgrade(), window);
+        this.arm_frame(window, cx);
         this.sidebar_preferences = this.endpoints[0]
             .connection
             .target
