@@ -64,6 +64,7 @@ pub(super) fn status_priority(status: AgentStatus) -> u8 {
 pub(super) fn sorted_agents(
     snapshot: &ClientShellSnapshot,
     sort: crate::preferences::AgentSort,
+    tree_view: bool,
 ) -> Vec<&ClientShellAgent> {
     if snapshot.agent_view_label.is_some() {
         return snapshot
@@ -79,18 +80,91 @@ pub(super) fn sorted_agents(
     }
     let mut ordered: Vec<_> = snapshot.agents.iter().collect();
     if sort == crate::preferences::AgentSort::Priority {
-        ordered.sort_by_key(|agent| {
-            // Orchestrators stay first in every sort mode, as in the tree.
-            (
-                !super::tree::is_orchestrator(snapshot, agent),
+        if tree_view {
+            ordered.sort_by_key(|agent| {
+                // Orchestrators stay first in every sort mode, as in the tree.
+                (
+                    !super::tree::is_orchestrator(snapshot, agent),
+                    (
+                        std::cmp::Reverse(status_priority(agent.agent_status)),
+                        std::cmp::Reverse(agent.state_change_seq),
+                    ),
+                )
+            });
+        } else {
+            ordered.sort_by_key(|agent| {
                 (
                     std::cmp::Reverse(status_priority(agent.agent_status)),
                     std::cmp::Reverse(agent.state_change_seq),
-                ),
-            )
-        });
+                )
+            });
+        }
     }
     ordered
+}
+
+pub(super) fn flat_off_order<'a>(
+    snapshot: &'a ClientShellSnapshot,
+    sort: crate::preferences::AgentSort,
+) -> Vec<(Option<&'a str>, &'a ClientShellAgent)> {
+    if snapshot.agent_view_label.is_none() && sort == crate::preferences::AgentSort::Grouped {
+        let mut ordered = Vec::new();
+        for (label, agents) in group_agents_by_space(snapshot) {
+            let mut first = Some(label);
+            for agent in agents {
+                ordered.push((first.take(), agent));
+            }
+        }
+        return ordered;
+    }
+    sorted_agents(snapshot, sort, false)
+        .into_iter()
+        .map(|agent| (None, agent))
+        .collect()
+}
+
+pub(super) fn flat_off_agents<'a>(
+    snapshot: &'a ClientShellSnapshot,
+    sort: crate::preferences::AgentSort,
+    search: &str,
+    filter: super::keys::StatusFilter,
+) -> Vec<(Option<&'a str>, &'a ClientShellAgent)> {
+    flat_off_order(snapshot, sort)
+        .into_iter()
+        .filter(|(_, agent)| {
+            super::keys::matches_agent(agent_name(agent), agent.agent_status, search, filter)
+        })
+        .collect()
+}
+
+pub(super) fn group_agents_by_space(
+    snapshot: &ClientShellSnapshot,
+) -> Vec<(&str, Vec<&ClientShellAgent>)> {
+    let mut groups = Vec::new();
+    for workspace in &snapshot.workspaces {
+        let agents: Vec<_> = snapshot
+            .agents
+            .iter()
+            .filter(|agent| agent.workspace_id == workspace.workspace_id)
+            .collect();
+        if !agents.is_empty() {
+            groups.push((workspace.label.as_str(), agents));
+        }
+    }
+    let known: std::collections::HashSet<&str> = snapshot
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.as_str())
+        .collect();
+    let orphans: Vec<_> = snapshot
+        .agents
+        .iter()
+        .filter(|agent| !known.contains(agent.workspace_id.as_str()))
+        .collect();
+    if !orphans.is_empty() {
+        groups.push(("unknown", orphans));
+    }
+    groups
 }
 
 /// What an agent is called wherever it is listed.
@@ -456,7 +530,7 @@ mod tests {
         snapshot: &herdr_client::protocol::ClientShellSnapshot,
         sort: crate::preferences::AgentSort,
     ) -> Vec<&str> {
-        sorted_agents(snapshot, sort)
+        sorted_agents(snapshot, sort, true)
             .into_iter()
             .map(|agent| agent.pane_id.as_str())
             .collect()

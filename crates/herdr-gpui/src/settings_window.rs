@@ -6,6 +6,7 @@ pub(crate) use layouts::{apply_loaded_layout, layout_load_revision};
 mod native;
 mod persistence;
 mod remote_history;
+mod sidebar_layout;
 #[cfg(test)]
 use persistence::SizeIo;
 use persistence::{Loaded, SaveCompletion};

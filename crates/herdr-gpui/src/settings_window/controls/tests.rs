@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::LayoutMode;
 use core::prelude::v1::test;
 
 mod session_restore;

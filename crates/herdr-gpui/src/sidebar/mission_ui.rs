@@ -375,6 +375,54 @@ impl crate::HerdrWindow {
         }
     }
 }
+
+impl crate::HerdrWindow {
+    pub(super) fn append_mission_rows(
+        &self,
+        agents: gpui::Stateful<gpui::Div>,
+        content_x: f32,
+        agent_count: usize,
+        cx: &mut gpui::Context<Self>,
+    ) -> (gpui::Stateful<gpui::Div>, usize) {
+        use gpui::prelude::*;
+        let mut agents = agents;
+        let mut agent_count = agent_count;
+        let theme = &self.theme;
+        for (mid, agent) in self.mission_hibernated() {
+            let note = mission_row_note(
+                agent,
+                &self.mission_inflight,
+                &self.mission_notes,
+                &self.mission_disabled,
+            );
+            let name = mission_display_name(&agent.identity_id);
+            let text = mission_row_text(name, note.as_deref());
+            let id = agent.identity_id.clone();
+            let mid_owned = mid.clone();
+            let selectable = is_selectable(agent) && !self.mission_disabled.contains(&id);
+            let row_id = format!("mission-{}", id.replace('/', "-"));
+            agent_count += 1;
+            agents = agents.child(
+                gpui::div()
+                    .flex_none()
+                    .w_full()
+                    .px(gpui::px(content_x))
+                    .child(super::label_text(&text))
+                    .text_color(gpui::rgb(if selectable {
+                        theme.foreground
+                    } else {
+                        theme.muted
+                    }))
+                    .when(selectable, |row| row.cursor_pointer())
+                    .id(gpui::SharedString::from(row_id))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.select_mission_identity(&mid_owned, &id, window, cx);
+                    })),
+            );
+        }
+        (agents, agent_count)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

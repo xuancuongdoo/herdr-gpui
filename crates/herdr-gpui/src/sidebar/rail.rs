@@ -284,7 +284,7 @@ impl HerdrWindow {
             if !self.config.show_agents {
                 continue;
             }
-            for agent in sorted_agents(snapshot, self.agent_sort) {
+            for agent in sorted_agents(snapshot, self.agent_sort, self.config.tree_view) {
                 let id = agent.pane_id.clone();
                 let key = format!("rail-agent-{endpoint_id}-{id}");
                 let navigate_endpoint = endpoint_id.clone();

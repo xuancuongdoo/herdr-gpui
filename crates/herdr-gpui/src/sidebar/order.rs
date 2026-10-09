@@ -51,9 +51,16 @@ impl HerdrWindow {
     pub(crate) fn sidebar_agents(&self) -> Vec<Row<'_>> {
         self.listed_hosts()
             .flat_map(|(index, snapshot)| {
-                sorted_agents(snapshot, self.agent_sort)
+                if !self.config.tree_view {
+                    return super::agents::flat_off_order(snapshot, self.agent_sort)
+                        .into_iter()
+                        .map(|(_, agent)| (index, agent.pane_id.as_str()))
+                        .collect::<Vec<_>>();
+                }
+                sorted_agents(snapshot, self.agent_sort, true)
                     .into_iter()
-                    .map(move |agent| (index, agent.pane_id.as_str()))
+                    .map(|agent| (index, agent.pane_id.as_str()))
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
@@ -61,6 +68,17 @@ impl HerdrWindow {
     pub(crate) fn sidebar_visible_agents(&self) -> Vec<Row<'_>> {
         self.listed_hosts()
             .flat_map(|(index, snapshot)| {
+                if !self.config.tree_view {
+                    return super::agents::flat_off_agents(
+                        snapshot,
+                        self.agent_sort,
+                        &self.sidebar_search,
+                        self.sidebar_status_filter,
+                    )
+                    .into_iter()
+                    .map(|(_, agent)| (index, agent.pane_id.as_str()))
+                    .collect::<Vec<_>>();
+                }
                 let label = &self.endpoints[index].label;
                 super::tree::render::visible_agent_panes(
                     snapshot,

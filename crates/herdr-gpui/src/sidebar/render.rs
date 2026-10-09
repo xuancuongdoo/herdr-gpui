@@ -5,7 +5,7 @@
 use super::{
     DEVICE_FOOTER_HEIGHT, HOST_ARROW_WIDTH, HOST_GAP, STATUS_WIDTH, SidebarDrag,
     agents::Indicators,
-    agents_sort,
+    agents::{agents_sort, flat_off_agents},
     cell::{Cell, Fold, RowContext, RowData, RowState, WorkspaceRow, layout_for},
     label_text, layout, line_height,
     reorder::{self, Plan},
@@ -616,7 +616,8 @@ impl HerdrWindow {
             // `Grouped` (`spaces`) renders the device → space → agent tree,
             // workspaces in daemon order. Other sorts stay flat, and so does a
             // custom agents layout: tree rows cannot honor its lines or row_gap.
-            let grouped = self.agent_sort == crate::preferences::AgentSort::Grouped
+            let grouped = self.config.tree_view
+                && self.agent_sort == crate::preferences::AgentSort::Grouped
                 && snapshot.agent_view_label.is_none()
                 && !agents_custom;
             if grouped {
@@ -651,8 +652,25 @@ impl HerdrWindow {
                 }
                 continue;
             }
-            let ordered = sorted_agents(snapshot, self.agent_sort);
-            for agent in ordered {
+            let ordered: Vec<(Option<&str>, &herdr_client::protocol::ClientShellAgent)> =
+                if !self.config.tree_view {
+                    flat_off_agents(
+                        snapshot,
+                        self.agent_sort,
+                        &self.sidebar_search,
+                        self.sidebar_status_filter,
+                    )
+                } else {
+                    sorted_agents(snapshot, self.agent_sort, self.config.tree_view)
+                        .into_iter()
+                        .map(|agent| (None, agent))
+                        .collect()
+                };
+            let mut pending_header: Option<&str> = None;
+            for (header, agent) in ordered {
+                if let Some(label) = header {
+                    pending_header = Some(label);
+                }
                 let lines = if agents_custom {
                     let Some(lines) = tokens::agent_rows(
                         &self.config.sidebar_layout.agents,
@@ -666,6 +684,27 @@ impl HerdrWindow {
                 } else {
                     Vec::new()
                 };
+                if let Some(label) = pending_header {
+                    let show = !agents_custom
+                        || lines
+                            .iter()
+                            .flatten()
+                            .any(|token| token.kind.text().is_some());
+                    if show {
+                        agents = agents.child(
+                            div()
+                                .debug_selector(|| format!("agent-group-{label}"))
+                                .flex_none()
+                                .px(px(content_x))
+                                .pt(px(4.))
+                                .text_color(rgb(theme.muted))
+                                .truncate()
+                                .child(label_text(label)),
+                        );
+                        list_rows += 1;
+                        pending_header = None;
+                    }
+                }
                 if selected && agent.focused {
                     highlighted[1] = Some(list_rows);
                 }
@@ -690,39 +729,7 @@ impl HerdrWindow {
                 ));
             }
         }
-        for (mid, agent) in self.mission_hibernated() {
-            let note = super::mission_ui::mission_row_note(
-                agent,
-                &self.mission_inflight,
-                &self.mission_notes,
-                &self.mission_disabled,
-            );
-            let name = super::mission_ui::mission_display_name(&agent.identity_id);
-            let text = super::mission_ui::mission_row_text(name, note.as_deref());
-            let id = agent.identity_id.clone();
-            let mid_owned = mid.clone();
-            let selectable =
-                super::mission_ui::is_selectable(agent) && !self.mission_disabled.contains(&id);
-            let row_id = format!("mission-{}", id.replace('/', "-"));
-            agent_count += 1;
-            agents = agents.child(
-                div()
-                    .flex_none()
-                    .w_full()
-                    .px(px(content_x))
-                    .child(label_text(&text))
-                    .text_color(rgb(if selectable {
-                        theme.foreground
-                    } else {
-                        theme.muted
-                    }))
-                    .when(selectable, |row| row.cursor_pointer())
-                    .id(SharedString::from(row_id))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.select_mission_identity(&mid_owned, &id, window, cx);
-                    })),
-            );
-        }
+        (agents, agent_count) = self.append_mission_rows(agents, content_x, agent_count, cx);
         if sliding {
             window.request_animation_frame();
         }

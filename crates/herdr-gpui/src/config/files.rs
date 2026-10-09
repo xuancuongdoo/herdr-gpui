@@ -286,6 +286,19 @@ impl Config {
     }
 
     pub(super) fn save_show_agents_path(show: bool, path: &Path) -> Result<()> {
+        Self::save_bool_path("show_agents", show, path)
+    }
+
+    pub(crate) fn save_tree_view(on: bool) -> Result<()> {
+        let (_lock, local) = Self::prepare_files(&Self::path()?)?;
+        Self::save_tree_view_path(on, &local)
+    }
+
+    pub(super) fn save_tree_view_path(on: bool, path: &Path) -> Result<()> {
+        Self::save_bool_path("tree_view", on, path)
+    }
+
+    fn save_bool_path(key: &str, value: bool, path: &Path) -> Result<()> {
         let result = (|| -> Result<()> {
             let text = match fs::read_to_string(path) {
                 Ok(text) => text,
@@ -293,14 +306,11 @@ impl Config {
                 Err(error) => return Err(error.into()),
             };
             let mut document = text.parse::<toml_edit::DocumentMut>()?;
-            let mut value = toml_edit::Value::from(show);
-            if let Some(previous) = document
-                .get("show_agents")
-                .and_then(toml_edit::Item::as_value)
-            {
+            let mut value = toml_edit::Value::from(value);
+            if let Some(previous) = document.get(key).and_then(toml_edit::Item::as_value) {
                 *value.decor_mut() = previous.decor().clone();
             }
-            document["show_agents"] = toml_edit::Item::Value(value);
+            document[key] = toml_edit::Item::Value(value);
             write_config(path, &document.to_string())
         })();
         result.map_err(|error| error.at_path(path))

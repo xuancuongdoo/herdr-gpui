@@ -189,7 +189,7 @@ impl SettingsWindow {
             ))
     }
 
-    pub(super) fn sidebar_gap_control(&self, cx: &mut Context<Self>) -> Div {
+    pub(in crate::settings_window) fn sidebar_gap_control(&self, cx: &mut Context<Self>) -> Div {
         let gap = self.config.layout.sidebar_gap;
         div()
             .child(self.control_row("Sidebar gap", format!("{gap} px (0-64)")))
@@ -219,6 +219,7 @@ impl SettingsWindow {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::config::LayoutMode;
     use core::prelude::v1::test;
     use std::sync::{Arc, Mutex};
 

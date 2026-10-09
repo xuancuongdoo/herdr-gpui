@@ -163,6 +163,9 @@ impl HerdrWindow {
     /// Uses the selected agent's workspace key (`ws:<label>:<workspace>`),
     /// matching the key shape in `tree/render.rs`.
     pub(crate) fn toggle_selected_agent_group(&mut self, cx: &mut Context<Self>) {
+        if !self.config.tree_view {
+            return;
+        }
         // While search captures text, printable keys (including space) edit
         // the query; the key handler appends them, so skip the toggle here.
         if self.sidebar_search_open {

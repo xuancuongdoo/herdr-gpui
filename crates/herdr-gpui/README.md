@@ -481,6 +481,7 @@ once. Set top-level `confirm_close_tab = false` to never ask for tabs
 (including their running processes), `confirm_close_pane = false` to close
 panes without asking, and `show_agents = false` to hide the Agents
 section and give Spaces the full sidebar height. All three default to `true`.
+Set `tree_view = false` for the flat pre-tree Agents list.
 The pane dialog's **Do not ask again** checkbox (click it or press Space) saves
 `confirm_close_pane = false` to `config-gpui.local.toml` once the close is sent. Saved edits apply automatically. The
 **Show agents** control in **Settings > Appearance > Sidebar layout** saves
