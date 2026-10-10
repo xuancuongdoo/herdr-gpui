@@ -970,6 +970,19 @@ impl SettingsWindow {
                     this.save_native(move || Config::save_show_agents(show), cx);
                 })),
             )
+            .child(
+                self.control_switch(
+                    "settings-tree-view",
+                    "Tree view",
+                    self.config.tree_view,
+                    true,
+                )
+                .debug_selector(|| "settings-tree-view".into())
+                .on_click(cx.listener(|this, _, _, cx| {
+                    let on = !this.config.tree_view;
+                    this.save_native(move || Config::save_tree_view(on), cx);
+                })),
+            )
             .child(self.preference_switch(
                 "settings-sidebar-search",
                 "Show search",
@@ -982,7 +995,6 @@ impl SettingsWindow {
             .child(self.sidebar_gap_control(cx))
     }
 }
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests;

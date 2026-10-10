@@ -38,6 +38,7 @@ confirm_close_tab = true
 confirm_close_pane = true
 # Show the Agents section below Spaces in the sidebar.
 show_agents = true
+tree_view = true
 # Show the search field at the top of the sidebar, which finds devices,
 # worktrees, and branches. Also under Settings > Appearance > Sidebar layout.
 show_sidebar_search = true

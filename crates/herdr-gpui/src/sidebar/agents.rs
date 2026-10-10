@@ -64,6 +64,7 @@ pub(super) fn status_priority(status: AgentStatus) -> u8 {
 pub(super) fn sorted_agents(
     snapshot: &ClientShellSnapshot,
     sort: crate::preferences::AgentSort,
+    tree_view: bool,
 ) -> Vec<&ClientShellAgent> {
     if snapshot.agent_view_label.is_some() {
         return snapshot
@@ -80,8 +81,9 @@ pub(super) fn sorted_agents(
     let mut ordered: Vec<_> = snapshot.agents.iter().collect();
     if sort == crate::preferences::AgentSort::Priority {
         ordered.sort_by_key(|agent| {
+            let pin = tree_view && super::tree::is_orchestrator(snapshot, agent);
             (
-                !super::tree::is_orchestrator(snapshot, agent),
+                !pin,
                 std::cmp::Reverse(status_priority(agent.agent_status)),
                 std::cmp::Reverse(agent.state_change_seq),
             )
@@ -89,6 +91,27 @@ pub(super) fn sorted_agents(
     }
     ordered
 }
+
+pub(super) fn flat_off_order(
+    snapshot: &ClientShellSnapshot,
+    sort: crate::preferences::AgentSort,
+) -> Vec<(Option<&str>, &ClientShellAgent)> {
+    if snapshot.agent_view_label.is_none() && sort == crate::preferences::AgentSort::Grouped {
+        let mut ordered = Vec::new();
+        for (label, agents) in group_agents_by_space(snapshot) {
+            let mut first = Some(label);
+            for agent in agents {
+                ordered.push((first.take(), agent));
+            }
+        }
+        return ordered;
+    }
+    sorted_agents(snapshot, sort, false)
+        .into_iter()
+        .map(|agent| (None, agent))
+        .collect()
+}
+
 /// Agents grouped under their space for the `Grouped` (`spaces`) sort.
 ///
 /// Workspaces stay in daemon order and each workspace's agents keep snapshot
@@ -135,6 +158,7 @@ pub(super) fn group_agents_by_space(
 pub(super) fn panel_agents<'a>(
     hosts: impl IntoIterator<Item = (usize, &'a crate::state::LiveState)>,
     sort: crate::preferences::AgentSort,
+    tree_view: bool,
 ) -> Vec<(usize, &'a ClientShellAgent)> {
     let mut merge = sort == crate::preferences::AgentSort::Priority;
     let mut listed = 0;
@@ -146,7 +170,7 @@ pub(super) fn panel_agents<'a>(
         listed += 1;
         merge &= snapshot.agent_view_label.is_none();
         rows.extend(
-            sorted_agents(snapshot, sort)
+            sorted_agents(snapshot, sort, tree_view)
                 .into_iter()
                 .map(|agent| (index, live, agent)),
         );
@@ -154,11 +178,13 @@ pub(super) fn panel_agents<'a>(
     // One host is already in order; the stable merge would only repeat it.
     if merge && listed > 1 {
         rows.sort_by_key(|(_, live, agent)| {
-            (
-                !live
+            let pin = tree_view
+                && live
                     .snapshot
                     .as_deref()
-                    .is_some_and(|snapshot| super::tree::is_orchestrator(snapshot, agent)),
+                    .is_some_and(|snapshot| super::tree::is_orchestrator(snapshot, agent));
+            (
+                !pin,
                 !live.status.is_connected(),
                 std::cmp::Reverse(status_priority(agent.agent_status)),
                 std::cmp::Reverse(live.agent_recency.of(&agent.pane_id)),
@@ -517,7 +543,7 @@ mod tests {
         snapshot: &herdr_client::protocol::ClientShellSnapshot,
         sort: crate::preferences::AgentSort,
     ) -> Vec<&str> {
-        sorted_agents(snapshot, sort)
+        sorted_agents(snapshot, sort, true)
             .into_iter()
             .map(|agent| agent.pane_id.as_str())
             .collect()

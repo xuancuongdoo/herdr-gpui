@@ -28,7 +28,10 @@ impl HerdrWindow {
         width: f32,
         cx: &mut Context<Self>,
     ) -> (Stateful<Div>, usize, Option<usize>) {
-        if self.agent_sort == crate::preferences::AgentSort::Grouped && !self.plugin_agent_view() {
+        if self.agent_sort == crate::preferences::AgentSort::Grouped
+            && self.config.tree_view
+            && !self.plugin_agent_view()
+        {
             return self.append_grouped_tree_rows(list, indicators, look, width, cx);
         }
         let font = &self.config.sidebar;
