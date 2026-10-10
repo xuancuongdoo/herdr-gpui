@@ -135,7 +135,6 @@ pub(super) struct RowState {
 /// Arranges a row's content and marks its state. Implementations are
 /// stateless and read only what they are given, so render stays free of I/O
 /// and allocation beyond the elements themselves. How a dragged row looks is
-/// part of the layout too: `state.lift` says which row is carried.
 pub(super) trait RowLayout {
     fn workspace(&self, row: WorkspaceRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
     fn agent(&self, row: AgentRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;

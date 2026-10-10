@@ -1,20 +1,24 @@
 //! Agent tree for the sidebar `spaces` sort: device → space → orchestrator → workers.
 
 #[cfg(test)]
+pub(crate) use legacy::build_agent_tree;
+#[cfg(test)]
 #[allow(unused_imports)]
 pub(crate) use legacy::build_agent_tree_with_status;
-#[allow(unused_imports)]
-pub(crate) use legacy::{TreeNode, TreeRow, build_agent_tree};
+pub(crate) use legacy::{TreeNode, TreeRow};
 
 mod job;
+#[cfg(test)]
 use herdr_client::protocol::{ClientShellAgent, ClientShellSnapshot};
 
+#[cfg(test)]
 use super::agents::agent_name;
 
 /// The single orchestrator rule at snapshot level, mirroring the tree's
 /// (`model::push_agents`): a role containing `ORCH`, or named as another
 /// agent's parent. The flat Priority sort pins these first, as the grouped
 /// tree already does.
+#[cfg(test)]
 pub(super) fn is_orchestrator(snapshot: &ClientShellSnapshot, agent: &ClientShellAgent) -> bool {
     if model::has_orchestrator_role(&agent.tokens) {
         return true;
@@ -614,9 +618,11 @@ mod legacy {
     /// `job:<label>:<pane>`, plus `grp:<ws>:<pane>:<done|idle>` (presence
     /// means expanded; status groups are collapsed by default). Each device
     /// uses its label as endpoint ID; unlisted agents go to the last.
+    #[cfg(test)]
     type AgentTuple = (String, String, String, Vec<(String, String)>);
     type AgentTupleWithStatus = (String, String, String, Vec<(String, String)>, AgentStatus);
 
+    #[cfg(test)]
     pub(crate) fn build_agent_tree(
         devices: &[(String, Vec<(String, String)>)],
         agents: &[AgentTuple],
@@ -779,5 +785,4 @@ mod legacy {
 #[cfg(test)]
 mod tests;
 
-#[cfg(any())]
 pub(crate) mod render;

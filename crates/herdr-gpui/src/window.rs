@@ -276,6 +276,7 @@ pub(crate) struct HerdrWindow {
     pub(crate) mission_ids: Vec<String>,
     /// Which mission each identity was fetched from.
     pub(crate) mission_mid: std::collections::HashMap<String, String>,
+    pub(crate) tree_collapsed: std::collections::HashSet<String>,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -447,6 +448,12 @@ impl HerdrWindow {
         if let Some(agent) = self.selected_agent_view() {
             self.last_inspected = Some(agent);
         }
+    }
+    pub(crate) fn toggle_group(&mut self, key: String, cx: &mut Context<Self>) {
+        if !self.tree_collapsed.remove(&key) {
+            self.tree_collapsed.insert(key);
+        }
+        cx.notify();
     }
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.updater.poll() {
@@ -910,6 +917,7 @@ impl HerdrWindow {
             mission_disabled: Default::default(),
             mission_ids: sidebar::mission_ui::mission_ids_from_env(),
             mission_mid: Default::default(),
+            tree_collapsed: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),
