@@ -70,6 +70,7 @@ mod log_window;
 mod login_env;
 mod menu;
 mod menus;
+mod mission;
 #[cfg(feature = "mockup")]
 mod mockup;
 mod motion;

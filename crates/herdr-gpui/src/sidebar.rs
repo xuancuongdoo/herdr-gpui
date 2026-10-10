@@ -8,6 +8,7 @@ mod hover;
 mod layout;
 mod layouts;
 mod metrics;
+pub(crate) mod mission_ui;
 mod note_line;
 mod order;
 pub(crate) mod preview;

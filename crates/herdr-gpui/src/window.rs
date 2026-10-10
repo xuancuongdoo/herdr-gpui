@@ -254,6 +254,20 @@ pub(crate) struct HerdrWindow {
     /// stored session. Until then the daemon's `ui.agent_panel_sort` decides,
     /// including after a config reload, as upstream's manual override does.
     pub(crate) agent_sort_modified: bool,
+    /// Hibernated mission identities (res-03): refreshed off the UI thread.
+    /// ACTIVE identities stay on their live pane; only `live_pane: None`
+    /// rows render from here, with no pane id.
+    pub(crate) mission_agents: Vec<crate::mission::graph::MissionAgent>,
+    /// Identity ids with a `mission resume` CLI in flight.
+    pub(crate) mission_inflight: std::collections::HashSet<String>,
+    /// Row suffixes by identity id (`session missing` / mismatch / stderr).
+    pub(crate) mission_notes: std::collections::HashMap<String, String>,
+    /// Rows disabled by a 409 lease (exit 3).
+    pub(crate) mission_disabled: std::collections::HashSet<String>,
+    /// Which missions the sidebar polls (`HERDR_MISSION_ID` comma list).
+    pub(crate) mission_ids: Vec<String>,
+    /// Which mission each identity was fetched from.
+    pub(crate) mission_mid: std::collections::HashMap<String, String>,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -852,6 +866,12 @@ impl HerdrWindow {
             sidebar_modified: false,
             agent_sort: preferences::AgentSort::default(),
             agent_sort_modified: false,
+            mission_agents: Vec::new(),
+            mission_inflight: Default::default(),
+            mission_notes: Default::default(),
+            mission_disabled: Default::default(),
+            mission_ids: sidebar::mission_ui::mission_ids_from_env(),
+            mission_mid: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),
@@ -927,6 +947,7 @@ impl HerdrWindow {
         this.load_gui_config(cx);
         this.load_shared_settings(cx);
         this.watch_gui_config(cx);
+        this.start_mission_refresh(cx);
         this
     }
 }
