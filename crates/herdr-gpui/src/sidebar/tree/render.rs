@@ -286,8 +286,7 @@ fn tree_agent_row(
         "",
         glyph_w,
     );
-    let status_floor =
-        (status_text(agent.agent_status).width() as f32 + 1.) * glyph_w;
+    let status_floor = (status_text(agent.agent_status).width() as f32 + 1.) * glyph_w;
     let guides_w = guides_w.min((content - status_floor).max(0.));
     let guide_segments = guides.chars().count() / 3;
     let keep_segments = ((guides_w / (3. * glyph_w)).floor() as usize).min(guide_segments);

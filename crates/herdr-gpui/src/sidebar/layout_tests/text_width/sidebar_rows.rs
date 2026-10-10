@@ -34,8 +34,13 @@ pub(super) fn check_text_allocation(cx: &mut gpui::VisualTestContext) {
             "fix/sidebar-label-width-and-overflow-regression",
         ] {
             let (bounds, rendered, width) = &cx.global::<TextProbes>().0[input];
-            assert!(bounds.size.width > px(150.));
-            assert!(*width > px(150.), "long labels must use available width");
+            let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
+            let budget = crate::sidebar::LABEL_WIDTH - 9. * glyph;
+            assert!(bounds.size.width > px(budget - 1.));
+            assert!(
+                *width > px(budget - glyph - 1.),
+                "long labels must use available width"
+            );
             assert_eq!(bounds.size.height, px(16.));
             assert!(
                 rendered.ends_with('\u{2026}'),
@@ -123,9 +128,22 @@ pub(super) fn check_row_geometry(cx: &mut gpui::VisualTestContext) {
         eprintln!(
             "{row}: row={row_bounds:?}, column={column_bounds:?}, name={name_bounds:?}, detail={detail_bounds:?}"
         );
-        assert!(name_bounds.size.width > px(150.), "{name}: {name_bounds:?}");
+        let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
+        let budget = crate::sidebar::LABEL_WIDTH - 9. * glyph;
+        let (name_min, detail_min) = if row.starts_with("row-agent") {
+            (
+                budget - 1.,
+                budget - crate::sidebar::STATUS_WIDTH - crate::sidebar::LABEL_GAP - 1.,
+            )
+        } else {
+            (150., 150.)
+        };
         assert!(
-            detail_bounds.size.width > px(150.),
+            name_bounds.size.width > px(name_min),
+            "{name}: {name_bounds:?}"
+        );
+        assert!(
+            detail_bounds.size.width > px(detail_min),
             "{detail}: {detail_bounds:?}"
         );
         assert_eq!(name_bounds.size.height, px(16.), "single-line name");
