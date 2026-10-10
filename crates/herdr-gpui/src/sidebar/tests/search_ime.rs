@@ -5,7 +5,7 @@ use herdr_client::protocol::AgentStatus;
 
 #[gpui::test]
 fn ime_commit_lands_in_query_and_filters(cx: &mut gpui::TestAppContext) {
-    let (view, cx) = cx.add_window_view(|window, cx| fixture_window(window, cx));
+    let (view, cx) = cx.add_window_view(fixture_window);
     cx.update(|window, cx| {
         let focus = view.read(cx).sidebar_search.input.read(cx).focus.clone();
         window.focus(&focus, cx);

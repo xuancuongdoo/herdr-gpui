@@ -4,9 +4,10 @@
 use crate::{
     HerdrWindow, NavigationTarget,
     sidebar::{
-        Indicators, agent_name, label_text,
+        Indicators, agent_name,
         agents::{agent_place, group_agents_by_space, state_label, status_text},
         cell::{AgentRow, Cell, RowContext, RowData, layout_for},
+        label_text,
         layout::SidebarLook,
         line_height, tokens, wash,
     },
@@ -75,7 +76,8 @@ impl HerdrWindow {
                 let gap = self.agent_row_gap(count);
                 count += 1;
                 list_rows += 1;
-                list = list.child(self.agent_cell(*index, agent, snapshot, &row_cx, lines, gap, cx));
+                list =
+                    list.child(self.agent_cell(*index, agent, snapshot, &row_cx, lines, gap, cx));
             }
             return (list, count, focused);
         }
@@ -110,21 +112,25 @@ impl HerdrWindow {
                 host: (multi && endpoint.id != crate::endpoint::LOCAL)
                     .then_some(endpoint.label.as_str()),
             };
-            let ordered: Vec<(Option<&str>, &ClientShellAgent)> = if snapshot.agent_view_label.is_none() {
-                group_agents_by_space(snapshot)
-                    .into_iter()
-                    .flat_map(|(label, agents)| {
-                        agents.into_iter().enumerate().map(move |(position, agent)| {
-                            (if position == 0 { Some(label) } else { None }, agent)
+            let ordered: Vec<(Option<&str>, &ClientShellAgent)> =
+                if snapshot.agent_view_label.is_none() {
+                    group_agents_by_space(snapshot)
+                        .into_iter()
+                        .flat_map(|(label, agents)| {
+                            agents
+                                .into_iter()
+                                .enumerate()
+                                .map(move |(position, agent)| {
+                                    (if position == 0 { Some(label) } else { None }, agent)
+                                })
                         })
-                    })
-                    .collect()
-            } else {
-                flat.iter()
-                    .filter(|(candidate, _)| *candidate == index)
-                    .map(|(_, agent)| (None, *agent))
-                    .collect()
-            };
+                        .collect()
+                } else {
+                    flat.iter()
+                        .filter(|(candidate, _)| *candidate == index)
+                        .map(|(_, agent)| (None, *agent))
+                        .collect()
+                };
             let mut pending_header: Option<&str> = None;
             for (header, agent) in ordered {
                 if let Some(label) = header {
@@ -135,7 +141,10 @@ impl HerdrWindow {
                 };
                 if let Some(label) = pending_header {
                     let show = !agents_custom
-                        || lines.iter().flatten().any(|token| token.kind.text().is_some());
+                        || lines
+                            .iter()
+                            .flatten()
+                            .any(|token| token.kind.text().is_some());
                     if show {
                         list = list.child(
                             div()

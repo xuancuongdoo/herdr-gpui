@@ -71,7 +71,6 @@ mod superset_dots;
 #[cfg(test)]
 mod text_width;
 #[cfg(test)]
-
 mod update_panel;
 #[cfg(test)]
 mod workspace_menu;

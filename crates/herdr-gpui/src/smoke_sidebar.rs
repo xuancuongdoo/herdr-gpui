@@ -153,11 +153,36 @@ fn start_sidebar_capture(handle: WindowHandle<HerdrWindow>, cx: &mut App) {
                 ],
                 focused: false,
             });
-            next.agents.push(worker("p-gapfk", "rev1354-gapfk", AgentStatus::Working, "sonnet"));
-            next.agents.push(worker("p-glimpact", "rev1354-glimpact", AgentStatus::Blocked, "opus"));
-            next.agents.push(worker("p-glhist", "rev1354-glhist", AgentStatus::Idle, "haiku"));
-            next.agents.push(worker("p-a1", "rev1354-a1", AgentStatus::Done, "muse-spark"));
-            next.agents.push(worker("p-accept", "tree-source-accept", AgentStatus::Working, "muse-spark-1.3"));
+            next.agents.push(worker(
+                "p-gapfk",
+                "rev1354-gapfk",
+                AgentStatus::Working,
+                "sonnet",
+            ));
+            next.agents.push(worker(
+                "p-glimpact",
+                "rev1354-glimpact",
+                AgentStatus::Blocked,
+                "opus",
+            ));
+            next.agents.push(worker(
+                "p-glhist",
+                "rev1354-glhist",
+                AgentStatus::Idle,
+                "haiku",
+            ));
+            next.agents.push(worker(
+                "p-a1",
+                "rev1354-a1",
+                AgentStatus::Done,
+                "muse-spark",
+            ));
+            next.agents.push(worker(
+                "p-accept",
+                "tree-source-accept",
+                AgentStatus::Working,
+                "muse-spark-1.3",
+            ));
             let next = Arc::new(next);
             view.live.snapshot = Some(next.clone());
             if let Some(endpoint) = view.endpoints.first_mut() {

@@ -55,7 +55,7 @@ impl HerdrWindow {
     /// The agents the panel paints, by host index, in its order. Painting
     /// and stepping both read it, so a shortcut lands on the row below.
     pub(super) fn panel_agents(&self) -> Vec<(usize, &ClientShellAgent)> {
-        if self.agent_sort == crate::preferences::AgentSort::Grouped {
+        if self.agent_sort == crate::preferences::AgentSort::Grouped && !self.plugin_agent_view() {
             let query = self.sidebar_search.query().unwrap_or("");
             let filter = self.sidebar_status_filter;
             return self

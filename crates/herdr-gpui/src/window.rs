@@ -67,8 +67,8 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 
-use herdr_client::{ConnectOptions, ConnectTarget};
 use herdr_client::protocol::ClientShellAgent;
+use herdr_client::{ConnectOptions, ConnectTarget};
 #[cfg(feature = "integration-test")]
 use std::sync::Arc;
 use std::time::Duration;
@@ -442,20 +442,6 @@ impl HerdrWindow {
         }
     }
 
-    pub(crate) fn selected_agent_view(&self) -> Option<ClientShellAgent> {
-        self.live.snapshot.as_deref()?.agents.iter().find(|agent| agent.focused).cloned()
-    }
-    pub(crate) fn remember_inspected(&mut self) {
-        if let Some(agent) = self.selected_agent_view() {
-            self.last_inspected = Some(agent);
-        }
-    }
-    pub(crate) fn toggle_group(&mut self, key: String, cx: &mut Context<Self>) {
-        if !self.tree_collapsed.remove(&key) {
-            self.tree_collapsed.insert(key);
-        }
-        cx.notify();
-    }
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.updater.poll() {
             match self.updater.commit_restart() {
@@ -593,7 +579,6 @@ impl HerdrWindow {
         self.report_focus();
         self.sync_window_title(window);
     }
-
 
     /// Agent turns are watched on every enabled, connected host this client
     /// may run Git on, and finished restores are reported wherever the user is.

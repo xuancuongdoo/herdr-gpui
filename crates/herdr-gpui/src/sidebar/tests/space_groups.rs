@@ -1,5 +1,5 @@
-use super::*;
 use super::super::agents::group_agents_by_space;
+use super::*;
 
 #[test]
 fn groups_agents_by_space_in_sidebar_workspace_order() {

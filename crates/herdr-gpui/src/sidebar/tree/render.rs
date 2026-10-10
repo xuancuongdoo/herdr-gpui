@@ -858,6 +858,12 @@ impl HerdrWindow {
         }
         (list, agent_count, focused)
     }
+    pub(crate) fn toggle_group(&mut self, key: String, cx: &mut Context<Self>) {
+        if !self.tree_collapsed.remove(&key) {
+            self.tree_collapsed.insert(key);
+        }
+        cx.notify();
+    }
 }
 
 #[cfg(test)]

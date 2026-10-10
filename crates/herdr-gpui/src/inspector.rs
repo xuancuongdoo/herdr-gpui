@@ -5,6 +5,7 @@
 //! [`HerdrWindow::inspector_panel`] without changing its signature.
 use crate::window::HerdrWindow;
 use gpui::{prelude::*, *};
+use herdr_client::protocol::ClientShellAgent;
 /// Fixed width of the right-hand inspector column.
 pub(crate) const INSPECTOR_WIDTH: f32 = 280.;
 /// Window narrower than this hides the inspector first (sidebar pattern).
@@ -50,5 +51,19 @@ impl HerdrWindow {
                 ))
                 .into_any_element(),
         )
+    }
+    pub(crate) fn selected_agent_view(&self) -> Option<ClientShellAgent> {
+        self.live
+            .snapshot
+            .as_deref()?
+            .agents
+            .iter()
+            .find(|agent| agent.focused)
+            .cloned()
+    }
+    pub(crate) fn remember_inspected(&mut self) {
+        if let Some(agent) = self.selected_agent_view() {
+            self.last_inspected = Some(agent);
+        }
     }
 }
