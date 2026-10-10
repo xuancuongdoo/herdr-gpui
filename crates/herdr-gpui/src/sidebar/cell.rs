@@ -13,13 +13,14 @@
 
 use super::{
     layout::SidebarLook,
+    metrics::line_height,
     row::{RowBadge, RowIcon, RowLift, RowTree, Upstream},
 };
 use crate::{
     config::{FontConfig, LayoutMode, Theme},
     icons::AgentIcon,
 };
-use gpui::{App, ClickEvent, Div, ElementId, Window};
+use gpui::{App, ClickEvent, Div, ElementId, Window, div, prelude::*, px};
 use herdr_client::protocol::{AgentStatus, ClientShellWorkspace};
 use std::borrow::Cow;
 
@@ -135,10 +136,26 @@ pub(super) struct RowState {
 /// Arranges a row's content and marks its state. Implementations are
 /// stateless and read only what they are given, so render stays free of I/O
 /// and allocation beyond the elements themselves. How a dragged row looks is
-/// part of the layout too: `state.lift` says which row is carried.
 pub(super) trait RowLayout {
     fn workspace(&self, row: WorkspaceRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
     fn agent(&self, row: AgentRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
+    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+        let look = cx.look;
+        div()
+            .debug_selector(|| format!("row-{key}"))
+            .h(px(look.row_height(line_height(cx.font))))
+            .w_full()
+            .min_w_0()
+            .flex_none()
+            .relative()
+            .px(px(look.content_x()))
+            .py(px(look.row_padding() + look.spacing() / 2.))
+            .flex()
+            .items_start()
+            .cursor_pointer()
+            .map(|row| look.mark(row, key, state, cx.theme))
+            .child(content)
+    }
 }
 
 /// One row waiting for its state: build it, mark it, then take the element.

@@ -254,6 +254,7 @@ pub(crate) struct HerdrWindow {
     /// stored session. Until then the daemon's `ui.agent_panel_sort` decides,
     /// including after a config reload, as upstream's manual override does.
     pub(crate) agent_sort_modified: bool,
+    pub(crate) tree_collapsed: std::collections::HashSet<String>,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -388,6 +389,13 @@ impl HerdrWindow {
             self.agent_sort = sort;
             self.agent_sort_modified = true;
         }
+    }
+
+    pub(crate) fn toggle_group(&mut self, key: String, cx: &mut Context<Self>) {
+        if !self.tree_collapsed.remove(&key) {
+            self.tree_collapsed.insert(key);
+        }
+        cx.notify();
     }
 
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -852,6 +860,7 @@ impl HerdrWindow {
             sidebar_modified: false,
             agent_sort: preferences::AgentSort::default(),
             agent_sort_modified: false,
+            tree_collapsed: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),

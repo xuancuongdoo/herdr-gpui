@@ -27,6 +27,9 @@ impl HerdrWindow {
         width: f32,
         cx: &mut Context<Self>,
     ) -> (Stateful<Div>, usize, Option<usize>) {
+        if self.agent_sort == crate::preferences::AgentSort::Grouped {
+            return self.append_grouped_tree_rows(list, indicators, look, width, cx);
+        }
         let font = &self.config.sidebar;
         let theme = &self.theme;
         let multi = self.endpoints.len() > 1;
@@ -73,14 +76,14 @@ impl HerdrWindow {
     }
 
     /// Whether the agents' rows follow a configured `[sidebar_layout.agents]`.
-    fn custom_agent_rows(&self) -> bool {
+    pub(in crate::sidebar) fn custom_agent_rows(&self) -> bool {
         self.config.usage.inline
             && self.config.sidebar_layout.agents != crate::config::AgentLayout::default()
     }
 
     /// The lines a configured agent row shows, empty for Herdr's own row, or
     /// None when the configured rows leave this agent out.
-    pub(super) fn configured_agent_lines(
+    pub(in crate::sidebar) fn configured_agent_lines(
         &self,
         agent: &ClientShellAgent,
         snapshot: &ClientShellSnapshot,
@@ -106,7 +109,7 @@ impl HerdrWindow {
     /// the agent of endpoint `index`, drawn in `row_cx`, that shows its pane
     /// when clicked.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn agent_cell(
+    pub(in crate::sidebar) fn agent_cell(
         &self,
         index: usize,
         agent: &ClientShellAgent,

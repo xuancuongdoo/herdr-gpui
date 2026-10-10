@@ -18,7 +18,6 @@ mod row;
 mod search;
 mod sticky;
 mod tokens;
-#[allow(dead_code)]
 pub(crate) mod tree;
 mod view;
 mod wash;

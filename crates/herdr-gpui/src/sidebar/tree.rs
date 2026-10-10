@@ -3,7 +3,6 @@
 #[cfg(test)]
 #[allow(unused_imports)]
 pub(crate) use legacy::build_agent_tree_with_status;
-#[allow(unused_imports)]
 pub(crate) use legacy::{TreeNode, TreeRow, build_agent_tree};
 
 mod job;
@@ -779,5 +778,4 @@ mod legacy {
 #[cfg(test)]
 mod tests;
 
-#[cfg(any())]
 pub(crate) mod render;
