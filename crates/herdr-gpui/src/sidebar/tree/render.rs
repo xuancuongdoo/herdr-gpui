@@ -26,25 +26,26 @@ use unicode_width::UnicodeWidthStr;
 pub(crate) enum StatusFilter {
     #[default]
     All,
-    Working,
-    Blocked,
-    Idle,
+    #[cfg(test)]
     Done,
 }
 
 impl StatusFilter {
-    pub(crate) fn matches(self, status: AgentStatus) -> bool {
+    pub(crate) fn matches(self, _status: AgentStatus) -> bool {
         match self {
             Self::All => true,
-            Self::Working => status == AgentStatus::Working,
-            Self::Blocked => status == AgentStatus::Blocked,
-            Self::Idle => status == AgentStatus::Idle,
-            Self::Done => status == AgentStatus::Done,
+            #[cfg(test)]
+            Self::Done => _status == AgentStatus::Done,
         }
     }
 }
 
-pub(crate) fn matches_agent(name: &str, status: AgentStatus, search: &str, filter: StatusFilter) -> bool {
+pub(crate) fn matches_agent(
+    name: &str,
+    status: AgentStatus,
+    search: &str,
+    filter: StatusFilter,
+) -> bool {
     if !filter.matches(status) {
         return false;
     }
@@ -437,44 +438,6 @@ pub(in crate::sidebar) fn filter_visible(
         .collect()
 }
 
-/// Agent pane IDs in renderer order, using the same filter and folded tree.
-pub(in crate::sidebar) fn visible_agent_panes(
-    snapshot: &ClientShellSnapshot,
-    endpoint_label: &str,
-    search: &str,
-    status_filter: StatusFilter,
-    collapsed: &HashSet<String>,
-) -> Vec<String> {
-    let devices = vec![(
-        endpoint_label.to_owned(),
-        snapshot
-            .workspaces
-            .iter()
-            .map(|w| (w.workspace_id.clone(), w.label.clone()))
-            .collect(),
-    )];
-    let input: Vec<_> = snapshot
-        .agents
-        .iter()
-        .map(|agent| {
-            (
-                agent.workspace_id.clone(),
-                agent.pane_id.clone(),
-                agent_name(agent).to_owned(),
-                agent.tokens.clone(),
-                agent.agent_status,
-            )
-        })
-        .collect();
-    let visible = filter_visible(&input, search, status_filter);
-    build_agent_tree_with_status(&devices, &visible, collapsed)
-        .into_iter()
-        .filter_map(|row| match row.node {
-            TreeNode::Agent { pane_id, .. } => Some(pane_id),
-            _ => None,
-        })
-        .collect()
-}
 /// Renders the device → space → agent rows for one endpoint snapshot.
 /// Fold state comes from `GroupedCtx::collapsed` (`dev:`/`ws:`/`job:` keys
 /// collapse; `grp:` keys expand, as status groups collapse by default).
@@ -854,8 +817,8 @@ impl HerdrWindow {
                 selected,
                 theme,
             );
-            let host = (multi && endpoint.id != crate::endpoint::LOCAL)
-                .then_some(endpoint.label.as_str());
+            let host =
+                (multi && endpoint.id != crate::endpoint::LOCAL).then_some(endpoint.label.as_str());
             let ctx = GroupedCtx {
                 snapshot,
                 endpoint_id: &endpoint.id,

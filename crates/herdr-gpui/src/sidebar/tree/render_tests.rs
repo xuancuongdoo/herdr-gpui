@@ -20,7 +20,12 @@ fn orchestrator_row_is_a_diamond_with_an_orchestrator_second_line() {
 fn worker_rows_show_the_status_glyph_name_and_state_word() {
     for (status, name, left, right) in [
         (AgentStatus::Working, "gapfk", "\u{25d0} gapfk", "working"),
-        (AgentStatus::Blocked, "glimpact", "\u{d7} glimpact", "blocked"),
+        (
+            AgentStatus::Blocked,
+            "glimpact",
+            "\u{d7} glimpact",
+            "blocked",
+        ),
         (AgentStatus::Idle, "a1", "\u{25cb} a1", "idle"),
         (AgentStatus::Done, "glhist", "\u{2713} glhist", "done"),
     ] {
@@ -182,8 +187,8 @@ fn lowercase_orchestrator_role_paints_diamond_and_normalizes() {
 
 // Search/status filter (sr-search): `filter_visible` keeps matches plus
 // their ancestor chain, so an orchestrator stays when any worker matches.
-use super::filter_visible;
 use super::StatusFilter;
+use super::filter_visible;
 
 fn filter_agent(
     workspace: &str,
