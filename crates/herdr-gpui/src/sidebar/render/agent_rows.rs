@@ -27,7 +27,7 @@ impl HerdrWindow {
         width: f32,
         cx: &mut Context<Self>,
     ) -> (Stateful<Div>, usize, Option<usize>) {
-        if self.agent_sort == crate::preferences::AgentSort::Grouped {
+        if self.agent_sort == crate::preferences::AgentSort::Grouped && !self.plugin_agent_view() {
             return self.append_grouped_tree_rows(list, indicators, look, width, cx);
         }
         let font = &self.config.sidebar;
@@ -73,6 +73,21 @@ impl HerdrWindow {
             list = list.child(self.agent_cell(index, agent, snapshot, &row_cx, lines, gap, cx));
         }
         (list, count, focused)
+    }
+    pub(in crate::sidebar) fn plugin_agent_view(&self) -> bool {
+        self.endpoints.iter().enumerate().any(|(index, endpoint)| {
+            if !endpoint.enabled || !self.device_visible(&endpoint.id) {
+                return false;
+            }
+            let live = if index == self.selected_endpoint {
+                &self.live
+            } else {
+                &endpoint.live
+            };
+            live.snapshot
+                .as_deref()
+                .is_some_and(|snapshot| snapshot.agent_view_label.is_some())
+        })
     }
 
     /// Whether the agents' rows follow a configured `[sidebar_layout.agents]`.

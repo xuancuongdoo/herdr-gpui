@@ -3,12 +3,11 @@
 //! The call site lives in `super::render`; this module only draws rows.
 
 use super::super::{
-    agents::{Indicators, agent_name, status_symbol},
-    cell::{RowContext, RowLayout, RowState},
+    agents::{Indicators, agent_name, agent_place, state_label, status_symbol, status_text},
+    cell::{AgentRow, Cell, RowContext, RowData, RowLayout},
     label_text,
     layout::SidebarLook,
-    metrics::glyph_width,
-    row::{RowKind, row_text},
+    metrics::{glyph_width, line_height},
     tokens::{ResolvedToken, agent_rows},
 };
 use super::legacy::build_agent_tree_with_status;
@@ -286,93 +285,96 @@ pub(crate) fn job_count_fits(
     need <= content
 }
 
-/// One tree agent row on a single line: guides, status glyph, then the name.
-/// The name gets the full row width; no role/model/status text competes with
-/// it. Status reads from the glyph, colour is only a secondary cue. The
-/// active layout supplies the row's chrome, so its highlight encloses the
-/// guides too.
+/// One tree agent row: the tree guides, then upstream's own agent cell for
+/// this layout, so status words, icons, dots, configured rows, and the host
+/// wash all match the flat list by construction. Only the guides gutter and
+/// the diamond name are tree-only.
 fn tree_agent_row(
     agent: &ClientShellAgent,
-    endpoint_id: &str,
-    multi: bool,
-    selected: bool,
-    prefix_width: f32,
-    rows: &dyn RowLayout,
+    ctx: &GroupedCtx<'_>,
     row_cx: &RowContext<'_>,
+    gap: f32,
     guides: &str,
-    display_name: &str,
+    lines: Vec<Vec<ResolvedToken>>,
     cx: &mut Context<HerdrWindow>,
 ) -> Stateful<Div> {
-    let (font, theme) = (row_cx.font, row_cx.theme);
+    let font = row_cx.font;
     let id = agent.pane_id.clone();
-    let navigate_endpoint = endpoint_id.to_owned();
+    let navigate_endpoint = ctx.endpoint_id.to_owned();
     let key = format!("agent-{id}");
-    let state = RowState {
-        selected: selected && agent.focused,
-        ..RowState::default()
-    };
     let (name, _) = agent_line(
-        display_name,
+        agent_name(agent),
         agent_token(agent, "role"),
         agent_token(agent, "model"),
     );
-    let icon = crate::icons::AgentIcon::from_identity(agent.agent.as_deref());
-    let (name_color, weight, _) = row_text(RowKind::Agent(icon), state.selected, theme);
-    let glyph = status_symbol(agent.agent_status);
-    let glyph_w = glyph_width(font);
-    // Every column is clipped to what the earlier ones leave, so a deep or
-    // narrow row never paints past the sidebar. Guides are fixed chrome with
-    // no ellipsis; the name pool takes everything after guides + glyph.
     let content = row_cx.look.content_width(row_cx.width).max(0.);
-    let (guides_w, glyph_col, name_w, suffix_w, _) =
-        tree_agent_widths(content, prefix_width, glyph, &name, "", glyph_w);
-    let name_w = name_w + suffix_w;
-    let line = div()
-        .w(px(content))
+    let glyph_w = glyph_width(font);
+    let (guides_w, _, _, _, _) = tree_agent_widths(
+        content,
+        guides.width() as f32 * glyph_w,
+        status_symbol(agent.agent_status),
+        &name,
+        "",
+        glyph_w,
+    );
+    let status_floor =
+        (status_text(agent.agent_status).width() as f32 + 1.) * glyph_w + row_cx.look.content_x();
+    let guides_w = guides_w.min((content - status_floor).max(0.));
+    let inner_cx = RowContext {
+        indicators: row_cx.indicators,
+        font,
+        theme: row_cx.theme,
+        look: row_cx.look,
+        width: (row_cx.width - guides_w).max(0.),
+        nest: row_cx.nest,
+        mark: row_cx.mark,
+        host: row_cx.host,
+    };
+    let inner = Cell::new(
+        ctx.rows,
+        RowData::Agent(AgentRow {
+            key,
+            name: &name,
+            icon: crate::icons::AgentIcon::from_identity(agent.agent.as_deref()),
+            status: agent.agent_status,
+            place: agent_place(agent, ctx.snapshot),
+            status_text: ctx
+                .agent_layout
+                .shows_status_text(agent.agent.as_deref())
+                .then(|| state_label(agent, status_text(agent.agent_status))),
+            lines,
+        }),
+        &inner_cx,
+    )
+    .selected(ctx.selected && agent.focused)
+    .row();
+    div()
+        .w_full()
         .flex_none()
         .flex()
         .flex_row()
         .child(
             div()
-                .debug_selector(|| format!("tree-agent-{id}"))
                 .w(px(guides_w))
                 .flex_none()
                 .overflow_hidden()
                 .whitespace_nowrap()
-                .text_color(rgb(theme.muted))
+                .text_color(rgb(row_cx.theme.muted))
                 .child(label_text(guides)),
         )
-        .child(
-            div()
-                .w(px(glyph_col))
-                .flex_none()
-                .overflow_hidden()
-                .text_color(rgb(row_cx.indicators.color(agent.agent_status)))
-                .child(label_text(glyph)),
-        )
-        .child(
-            div()
-                .debug_selector(|| format!("name-{key}"))
-                .w(px(name_w))
-                .flex_none()
-                .truncate()
-                .whitespace_nowrap()
-                .font_weight(weight)
-                .text_color(rgb(name_color))
-                .child(label_text(&name)),
-        );
-    let row = rows.tree_agent(&key, state, line, row_cx);
-    row.id(SharedString::from(format!(
-        "tree-agent-{}-{}",
-        endpoint_id, agent.pane_id
-    )))
-    .when(multi, |row| {
-        row.debug_selector(|| format!("agent-{}-{}", endpoint_id, agent.pane_id))
-    })
-    .on_click(cx.listener(move |this, _, window, cx| {
-        this.navigate_endpoint(&navigate_endpoint, NavigationTarget::Pane(&id), cx);
-        window.focus(&this.focus, cx);
-    }))
+        .child(div().flex_1().min_w_0().child(inner))
+        .when(gap > 0., |row| row.mt(px(gap)))
+        .id(SharedString::from(format!(
+            "tree-agent-{}-{}",
+            ctx.endpoint_id, agent.pane_id
+        )))
+        .when(ctx.multi, |row| {
+            row.debug_selector(|| format!("agent-{}-{}", ctx.endpoint_id, agent.pane_id))
+        })
+        .on_click(cx.listener(move |this, _, window, cx| {
+            this.navigate_endpoint(&navigate_endpoint, NavigationTarget::Pane(&id), cx);
+            window.focus(&this.focus, cx);
+        }))
 }
 
 /// Agents visible under the search query + status filter, computed before
@@ -772,15 +774,21 @@ pub(in crate::sidebar) fn render_grouped(
                 let Some(agent) = by_pane.get(pane_id.as_str()).copied() else {
                     continue;
                 };
-                // Custom rows that resolve to nothing hide the agent, as the
-                // flat list does; the tree row itself is always one line.
-                if lines.remove(pane_id.as_str()).is_none() {
+                let Some(resolved) = lines.remove(pane_id.as_str()) else {
                     continue;
-                }
+                };
                 if ctx.selected && agent.focused {
                     focused = Some(list_rows);
                 }
-                let prefix = guides(row);
+                let prefix = if row.depth > 0 && !row.has_children {
+                    if row.last_child {
+                        "└─ ".to_owned()
+                    } else {
+                        "├─ ".to_owned()
+                    }
+                } else {
+                    String::new()
+                };
                 let row_cx = RowContext {
                     indicators: ctx.indicators,
                     font: ctx.font,
@@ -791,19 +799,15 @@ pub(in crate::sidebar) fn render_grouped(
                     mark: ctx.mark,
                     host: ctx.host,
                 };
+                let gap = if ctx.agents_custom && agent_count > 0 {
+                    f32::from(ctx.agent_layout.row_gap) * line_height(ctx.font)
+                } else {
+                    0.
+                };
                 list_rows += 1;
                 agent_count += 1;
                 agents = agents.child(tree_agent_row(
-                    agent,
-                    ctx.endpoint_id,
-                    ctx.multi,
-                    ctx.selected,
-                    prefix.width() as f32 * glyph_width(ctx.font),
-                    ctx.rows,
-                    &row_cx,
-                    &prefix,
-                    agent_name(agent),
-                    cx,
+                    agent, ctx, &row_cx, gap, &prefix, resolved, cx,
                 ));
             }
         }
