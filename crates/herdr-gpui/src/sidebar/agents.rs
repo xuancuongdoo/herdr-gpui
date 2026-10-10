@@ -81,6 +81,7 @@ pub(super) fn sorted_agents(
     if sort == crate::preferences::AgentSort::Priority {
         ordered.sort_by_key(|agent| {
             (
+                !super::tree::is_orchestrator(snapshot, agent),
                 std::cmp::Reverse(status_priority(agent.agent_status)),
                 std::cmp::Reverse(agent.state_change_seq),
             )
@@ -154,6 +155,10 @@ pub(super) fn panel_agents<'a>(
     if merge && listed > 1 {
         rows.sort_by_key(|(_, live, agent)| {
             (
+                !live
+                    .snapshot
+                    .as_deref()
+                    .is_some_and(|snapshot| super::tree::is_orchestrator(snapshot, agent)),
                 !live.status.is_connected(),
                 std::cmp::Reverse(status_priority(agent.agent_status)),
                 std::cmp::Reverse(live.agent_recency.of(&agent.pane_id)),

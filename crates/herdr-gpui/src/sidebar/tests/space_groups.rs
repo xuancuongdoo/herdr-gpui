@@ -14,7 +14,7 @@ fn groups_agents_by_space_in_sidebar_workspace_order() {
     snapshot.workspaces[3].label = "empty".into();
 
     let template = snapshot.agents[0].clone();
-    let mut agent = |pane_id: &str, workspace_id: &str| {
+    let agent = |pane_id: &str, workspace_id: &str| {
         let mut next = template.clone();
         next.pane_id = pane_id.into();
         next.workspace_id = workspace_id.into();
