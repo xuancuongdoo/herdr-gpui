@@ -95,7 +95,7 @@ impl HerdrWindow {
     pub(crate) fn scroll_wheel(
         &mut self,
         event: &ScrollWheelEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.shift_taps.cancel();
@@ -129,6 +129,7 @@ impl HerdrWindow {
                 return;
             }
         }
+        self.arm_frame(window, cx);
     }
 
     /// Cmd-V and Edit > Paste into the focused pane or popup.
@@ -199,6 +200,7 @@ impl HerdrWindow {
         {
             cx.stop_propagation();
             window.prevent_default();
+            self.arm_frame(window, cx);
             return;
         }
         self.clear_retained_selection(cx);
@@ -238,13 +240,19 @@ impl HerdrWindow {
             cx.stop_propagation();
             window.prevent_default();
         }
+        self.arm_frame(window, cx);
     }
 
     /// Releases a key the pane received while Herdr reported that its focused
     /// pane wants every key event, as the TUI does by switching its outer
     /// terminal to report all keys. Text stays with the input handler, so
     /// only keys sent as key events are released.
-    pub(crate) fn key_up(&mut self, event: &KeyUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn key_up(
+        &mut self,
+        event: &KeyUpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(release) = self.held_keys.release(&event.keystroke.key) else {
             return;
         };
@@ -252,5 +260,6 @@ impl HerdrWindow {
             self.send(release, cx);
             cx.stop_propagation();
         }
+        self.arm_frame(window, cx);
     }
 }

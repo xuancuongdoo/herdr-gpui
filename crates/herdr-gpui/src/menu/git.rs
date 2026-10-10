@@ -62,8 +62,16 @@ impl HerdrWindow {
     pub(crate) fn update_git(&mut self) -> bool {
         let now = std::time::Instant::now();
         let mut changed = self.git.track(self.git_input(), self.active, now);
-        self.git
-            .track_listed(self.listed_git_inputs(), self.active, now);
+        let snapshot = self.live.snapshot.clone();
+        let key = self.listed_git_key();
+        if !self
+            .git
+            .should_skip_listed(snapshot.as_ref(), key, self.active, now)
+        {
+            self.git
+                .track_listed(self.listed_git_inputs(), self.active, now);
+            self.git.set_listed_key(snapshot, key, self.active);
+        }
         changed |= self.git.poll(now);
         changed |= self.update_pr_actions(now);
         changed
@@ -87,6 +95,19 @@ impl HerdrWindow {
                 .ok()
             })
             .collect()
+    }
+
+    /// Endpoint flags that gate whether the listing is empty. The snapshot
+    /// `Arc` itself is the listing identity and is pinned in `Git`, so a
+    /// freed address can never compare equal. Same key plus same `Arc` lets
+    /// `update_git` skip both the `Vec` rebuild and `track_listed`.
+    fn listed_git_key(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.selected_endpoint.hash(&mut hasher);
+        self.live.local_daemon_peer.hash(&mut hasher);
+        self.live.status.is_connected().hash(&mut hasher);
+        hasher.finish()
     }
 
     /// Local, owned daemon sockets only: the same trust boundary the PR lookup

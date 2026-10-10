@@ -69,6 +69,7 @@ mod superset_dots;
 #[cfg(test)]
 mod text_width;
 #[cfg(test)]
+
 mod update_panel;
 #[cfg(test)]
 mod workspace_menu;
@@ -540,6 +541,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         marked_selection: None,
         hover: None,
         hover_menu: None,
+        frame_armed: false,
         local_error: None,
         menu: crate::menu::MenuState::new(cx),
         settings: Default::default(),
@@ -572,6 +574,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_pin_reveal: Default::default(),
         sidebar_search: crate::sidebar::SidebarSearch::new(cx),
         _poll: Task::ready(()),
+        _wake: Task::ready(()),
         _activation: cx.observe_window_activation(window, |_, _, _| {}),
         _appearance: cx.observe_window_appearance(window, |this, _, cx| {
             this.apply_shared_theme(cx);

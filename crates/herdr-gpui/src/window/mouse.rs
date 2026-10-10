@@ -198,6 +198,7 @@ impl HerdrWindow {
                 generation: self.selected_generation,
             });
         }
+        self.arm_frame(window, cx);
         true
     }
 

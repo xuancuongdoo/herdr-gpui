@@ -10,6 +10,7 @@ use crate::{
     Error,
     pull_request::{Input, clean, local_checkout, origin_repository, run, run_bytes},
 };
+use herdr_client::protocol::ClientShellSnapshot;
 use secrecy::SecretString;
 use std::{
     collections::VecDeque,
@@ -136,6 +137,12 @@ pub(super) struct Git {
     probes: Vec<Probe>,
     queue: VecDeque<Input>,
     next_scan: Option<Instant>,
+    /// Source of the last listing: the live snapshot `Arc` plus endpoint
+    /// flags. The retained `Arc` pins the address while it is compared, so a
+    /// freed snapshot's address can never be reused for a false skip.
+    listed_snapshot: Option<Arc<ClientShellSnapshot>>,
+    listed_key: Option<u64>,
+    listed_refresh: Option<bool>,
 }
 
 impl Drop for Git {
@@ -206,6 +213,40 @@ impl Git {
             self.waiting = Some((input, Job::Status));
         }
         changed
+    }
+
+    /// Whether `update_git` may skip rebuilding the listed inputs and calling
+    /// `track_listed`: same source as last tick, same active state, and no
+    /// scan due (an inactive window never queues, so it skips on key alone).
+    /// A due scan still rebuilds and re-queues stale probes, so the refresh
+    /// intervals below are unchanged.
+    pub fn should_skip_listed(
+        &self,
+        snapshot: Option<&Arc<ClientShellSnapshot>>,
+        key: u64,
+        refresh: bool,
+        now: Instant,
+    ) -> bool {
+        self.listed_key == Some(key)
+            && self.listed_refresh == Some(refresh)
+            && match (&self.listed_snapshot, snapshot) {
+                (None, None) => true,
+                (Some(previous), Some(current)) => Arc::ptr_eq(previous, current),
+                _ => false,
+            }
+            && (!refresh || self.next_scan.is_some_and(|next| now < next))
+    }
+
+    /// Remember the source served by the last `track_listed` call.
+    pub fn set_listed_key(
+        &mut self,
+        snapshot: Option<Arc<ClientShellSnapshot>>,
+        key: u64,
+        refresh: bool,
+    ) {
+        self.listed_snapshot = snapshot;
+        self.listed_key = Some(key);
+        self.listed_refresh = Some(refresh);
     }
 
     /// Does this checkout have anything to commit? `None` while unknown, so a
