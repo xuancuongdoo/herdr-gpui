@@ -559,6 +559,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         agent_sort: Default::default(),
         agent_sort_modified: false,
         tree_collapsed: Default::default(),
+        sidebar_status_filter: Default::default(),
         avatars: None,
         #[cfg(feature = "integration-test")]
         input_probe: crate::smoke::InputProbe::default(),

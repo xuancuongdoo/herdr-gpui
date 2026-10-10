@@ -255,6 +255,7 @@ pub(crate) struct HerdrWindow {
     /// including after a config reload, as upstream's manual override does.
     pub(crate) agent_sort_modified: bool,
     pub(crate) tree_collapsed: std::collections::HashSet<String>,
+    pub(crate) sidebar_status_filter: sidebar::keys::StatusFilter,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -861,6 +862,7 @@ impl HerdrWindow {
             agent_sort: preferences::AgentSort::default(),
             agent_sort_modified: false,
             tree_collapsed: Default::default(),
+            sidebar_status_filter: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),

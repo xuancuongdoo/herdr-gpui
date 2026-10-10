@@ -6,6 +6,7 @@ mod cell;
 mod host_row;
 mod hover;
 mod layout;
+pub(crate) mod keys;
 mod layouts;
 mod metrics;
 mod note_line;

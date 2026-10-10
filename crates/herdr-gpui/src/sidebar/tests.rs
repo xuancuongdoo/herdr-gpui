@@ -23,5 +23,6 @@ mod agent_order;
 mod hierarchy;
 mod host_mark;
 mod row_text;
+mod search_ime;
 mod statuses;
 mod sticky_hosts;

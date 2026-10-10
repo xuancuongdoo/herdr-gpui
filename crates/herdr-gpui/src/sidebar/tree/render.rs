@@ -23,38 +23,7 @@ use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshot}
 use std::collections::{HashMap, HashSet};
 use unicode_width::UnicodeWidthStr;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum StatusFilter {
-    #[default]
-    All,
-    Working,
-    Blocked,
-    Idle,
-    Done,
-}
-
-impl StatusFilter {
-    pub(crate) fn matches(self, status: AgentStatus) -> bool {
-        match self {
-            Self::All => true,
-            Self::Working => status == AgentStatus::Working,
-            Self::Blocked => status == AgentStatus::Blocked,
-            Self::Idle => status == AgentStatus::Idle,
-            Self::Done => status == AgentStatus::Done,
-        }
-    }
-}
-
-pub(crate) fn matches_agent(name: &str, status: AgentStatus, search: &str, filter: StatusFilter) -> bool {
-    if !filter.matches(status) {
-        return false;
-    }
-    let query = search.trim();
-    if query.is_empty() {
-        return true;
-    }
-    name.to_lowercase().contains(&query.to_lowercase())
-}
+use super::super::keys::{StatusFilter, matches_agent};
 type FilterAgent = (String, String, String, Vec<(String, String)>, AgentStatus);
 /// Guide prefix for a row: `│  `/blank per ancestor plus `├─ `/`└─ ` for
 /// itself. Fold parents keep only the ancestor guides so the vertical `│`
@@ -832,6 +801,7 @@ impl HerdrWindow {
         let theme = &self.theme;
         let content_x = look.content_x();
         let agents_custom = self.custom_agent_rows();
+        let query = self.sidebar_search.query().unwrap_or("");
         let mut list_rows = 0usize;
         let mut agent_count = 0usize;
         let mut focused = None;
@@ -872,8 +842,8 @@ impl HerdrWindow {
                 nest: 0.,
                 mark,
                 collapsed: &self.tree_collapsed,
-                search: "",
-                status_filter: StatusFilter::All,
+                search: query,
+                status_filter: self.sidebar_status_filter,
             };
             let outcome = render_grouped(list, &ctx, list_rows, agent_count, cx);
             list = outcome.agents;
