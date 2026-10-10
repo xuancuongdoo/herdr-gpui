@@ -537,6 +537,8 @@ impl HerdrWindow {
         if agents_panel {
             (agents, agent_count, highlighted[1]) =
                 self.append_agent_rows(agents, indicators, look, width, cx);
+            (agents, agent_count) =
+                self.append_mission_rows(agents, content_x, agent_count, cx);
         }
         if sliding {
             window.request_animation_frame();
