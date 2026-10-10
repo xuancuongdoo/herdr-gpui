@@ -286,9 +286,6 @@ fn tree_agent_row(
         "",
         glyph_w,
     );
-    let status_floor =
-        (status_text(agent.agent_status).width() as f32 + 1.) * glyph_w + row_cx.look.content_x();
-    let guides_w = guides_w.min((content - status_floor).max(0.));
     let inner_cx = RowContext {
         indicators: row_cx.indicators,
         font,
@@ -748,15 +745,7 @@ pub(in crate::sidebar) fn render_grouped(
                 if ctx.selected && agent.focused {
                     focused = Some(list_rows);
                 }
-                let prefix = if row.depth > 0 && !row.has_children {
-                    if row.last_child {
-                        "└─ ".to_owned()
-                    } else {
-                        "├─ ".to_owned()
-                    }
-                } else {
-                    String::new()
-                };
+                let prefix = guides(row);
                 let row_cx = RowContext {
                     indicators: ctx.indicators,
                     font: ctx.font,
