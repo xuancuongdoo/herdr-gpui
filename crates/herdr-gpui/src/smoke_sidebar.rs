@@ -63,6 +63,156 @@ fn symbol_cascade(window: &mut Window, cx: &mut App) -> Result<&'static str> {
     Ok("symbol cascade reaches installed Nerd Fonts")
 }
 
+/// Background-safe capture of the real sidebar fixture.
+///
+/// TEST-ONLY escape hatch (integration-test builds only): when
+/// `HERDR_TEST_SIDEBAR_CAPTURE=<absolute output.png>` is set, this path draws
+/// the settled sidebar and saves it straight from the renderer, like the
+/// mockup `--capture` path. It never touches `sidebar::native_tests`
+/// (no acquire, click, drag, right-click, paste, or key-window probe), so a
+/// capture run cannot disturb the user's desktop. Any failure exits non-zero
+/// so the harness can assert on it.
+fn start_sidebar_capture(handle: WindowHandle<HerdrWindow>, cx: &mut App) {
+    EXIT_CODE.store(1, Ordering::SeqCst);
+    let Some(path) = std::env::var_os("HERDR_TEST_SIDEBAR_CAPTURE")
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_absolute())
+    else {
+        eprintln!("SIDEBAR capture FAIL: HERDR_TEST_SIDEBAR_CAPTURE must be an absolute path");
+        std::process::exit(1);
+    };
+    let _ = handle.update(cx, |view, _, cx| {
+        if let Some(current) = view.live.snapshot.clone()
+            && !current.workspaces.iter().any(|w| w.workspace_id == "w-rev")
+        {
+            let mut next = (*current).clone();
+            next.workspaces.insert(
+                1.min(next.workspaces.len()),
+                ClientShellWorkspace {
+                    workspace_id: "w-rev".into(),
+                    active_tab_id: "t-rev".into(),
+                    new_workspace_cwd: "/tmp".into(),
+                    number: 41,
+                    label: "datacaliper".into(),
+                    custom_label: false,
+                    branch: Some("main".into()),
+                    git_ahead_behind: None,
+                    tokens: Vec::new(),
+                    worktree: None,
+                    focused: false,
+                    agent_status: AgentStatus::Working,
+                },
+            );
+            next.tabs.push(ClientShellTab {
+                tab_id: "t-rev".into(),
+                workspace_id: "w-rev".into(),
+                number: 1,
+                label: "tab 1".into(),
+                custom_label: false,
+                zoomed: false,
+                focused: false,
+                agent_status: AgentStatus::Working,
+            });
+            let worker =
+                |pane: &str, name: &str, status: AgentStatus, model: &str| ClientShellAgent {
+                    pane_id: pane.into(),
+                    workspace_id: "w-rev".into(),
+                    tab_id: "t-rev".into(),
+                    name: Some(name.into()),
+                    display_agent: Some(name.into()),
+                    agent: Some("claude".into()),
+                    title: None,
+                    terminal_title: None,
+                    terminal_title_stripped: None,
+                    agent_status: status,
+                    state_change_seq: 0,
+                    state_labels: Vec::new(),
+                    tokens: vec![
+                        ("parent".to_owned(), "p-orch".to_owned()),
+                        ("role".to_owned(), "worker".to_owned()),
+                        ("model".to_owned(), model.to_owned()),
+                    ],
+                    focused: false,
+                };
+            next.agents.push(ClientShellAgent {
+                pane_id: "p-orch".into(),
+                workspace_id: "w-rev".into(),
+                tab_id: "t-rev".into(),
+                name: Some("omp".into()),
+                display_agent: Some("omp".into()),
+                agent: Some("omp".into()),
+                title: None,
+                terminal_title: None,
+                terminal_title_stripped: None,
+                agent_status: AgentStatus::Working,
+                state_change_seq: 0,
+                state_labels: Vec::new(),
+                tokens: vec![
+                    ("role".to_owned(), "ORCH".to_owned()),
+                    ("model".to_owned(), "opus".to_owned()),
+                ],
+                focused: false,
+            });
+            next.agents.push(worker("p-gapfk", "rev1354-gapfk", AgentStatus::Working, "sonnet"));
+            next.agents.push(worker("p-glimpact", "rev1354-glimpact", AgentStatus::Blocked, "opus"));
+            next.agents.push(worker("p-glhist", "rev1354-glhist", AgentStatus::Idle, "haiku"));
+            next.agents.push(worker("p-a1", "rev1354-a1", AgentStatus::Done, "muse-spark"));
+            next.agents.push(worker("p-accept", "tree-source-accept", AgentStatus::Working, "muse-spark-1.3"));
+            let next = Arc::new(next);
+            view.live.snapshot = Some(next.clone());
+            if let Some(endpoint) = view.endpoints.first_mut() {
+                endpoint.live.snapshot = Some(next);
+            }
+        }
+        if let Some(width) = std::env::var_os("HERDR_TEST_SIDEBAR_CAPTURE_WIDTH")
+            .and_then(|value| value.into_string().ok())
+            .and_then(|value| value.parse::<f32>().ok())
+            .filter(|width| width.is_finite() && *width > 0.)
+        {
+            view.sidebar_width = Some(width);
+        }
+        cx.notify();
+    });
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(Duration::from_secs(1)).await;
+        let rendered = AnyWindowHandle::from(handle).update(cx, |_, window, cx| {
+            window.draw(cx).clear(cx);
+            window.render_to_image()
+        });
+        let image = match rendered {
+            Ok(Ok(image)) => image,
+            Ok(Err(error)) => {
+                eprintln!("SIDEBAR capture FAIL: render: {error:#}");
+                std::process::exit(1);
+            }
+            Err(error) => {
+                eprintln!("SIDEBAR capture FAIL: window closed: {error}");
+                std::process::exit(1);
+            }
+        };
+        let saved: Result<std::path::PathBuf> = cx
+            .background_executor()
+            .spawn(async move {
+                let mut png = Vec::new();
+                image.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)?;
+                std::fs::write(&path, png)?;
+                anyhow::Ok(path)
+            })
+            .await;
+        match saved {
+            Ok(path) => {
+                eprintln!("SIDEBAR capture: {}", path.display());
+                std::process::exit(0);
+            }
+            Err(error) => {
+                eprintln!("SIDEBAR capture FAIL: save: {error:#}");
+                std::process::exit(1);
+            }
+        }
+    })
+    .detach();
+}
+
 pub fn start_sidebar(handle: WindowHandle<HerdrWindow>, cx: &mut App) {
     #[cfg(target_os = "linux")]
     if std::env::var_os("HERDR_TEST_APPLICATION_MENUS").is_some() {
@@ -88,6 +238,10 @@ pub fn start_sidebar(handle: WindowHandle<HerdrWindow>, cx: &mut App) {
     }
     if std::env::var_os("HERDR_TEST_NOTIFICATIONS_ONLY").is_some() {
         start_notifications(handle, cx);
+        return;
+    }
+    if std::env::var_os("HERDR_TEST_SIDEBAR_CAPTURE").is_some() {
+        start_sidebar_capture(handle, cx);
         return;
     }
     EXIT_CODE.store(1, Ordering::SeqCst);

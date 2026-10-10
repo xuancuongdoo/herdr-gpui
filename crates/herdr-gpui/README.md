@@ -2988,6 +2988,17 @@ An intentionally wrong-width native fixture verifies exit code 1, useful diagnos
 and absence of an abort signal. Sidebar and notification drivers exit explicitly
 so AppKit termination cannot turn a failure into exit code 0.
 
+Background-safe sidebar capture (integration-test builds only): with
+`HERDR_TEST_SIDEBAR_CAPTURE=<absolute output.png>` set,
+`target/release/herdr-gpui --sidebar-test` draws the settled synthetic sidebar
+fixture and saves it straight from the renderer via `render_to_image`
+(`crates/herdr-gpui/src/smoke_sidebar.rs:75`, `crates/herdr-gpui/src/app.rs:101-112,350-353`).
+The capture window opens unfocused (`focus: false`) and never activates, touches
+no daemon, and drives no native pointer input (`sidebar::native_tests` untouched).
+Build with `cargo build --locked --release -p herdr-gpui --features integration-test`;
+the destination must be an absolute PNG path and any failure exits nonzero.
+Exercised 2026-10-07: `/tmp/sidebar-real.png` (115073 bytes), exit 0.
+
 GPUI 0.3.6's Wayland window retains its platform input handler during deferred
 native cleanup. `ElementInputHandler` holds a strong entity reference, which can
 therefore outlive GPUI's shutdown leak check and cause an `Exited with leaked
