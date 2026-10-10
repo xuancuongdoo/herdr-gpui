@@ -83,7 +83,10 @@ fn closing_the_tab_drops_its_page(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 fn a_narrow_tab_wraps_the_load_columns_instead_of_cutting_them(cx: &mut gpui::TestAppContext) {
     let (view, cx) = window(cx);
-    cx.simulate_resize(gpui::size(gpui::px(1400.), gpui::px(900.)));
+    cx.simulate_resize(gpui::size(
+        gpui::px(1400. + crate::inspector::INSPECTOR_WIDTH),
+        gpui::px(900.),
+    ));
     open(&view, cx);
     let wide_row = cx.debug_bounds("devices-row-local").unwrap();
     let wide_totals = cx.debug_bounds("devices-totals").unwrap();
