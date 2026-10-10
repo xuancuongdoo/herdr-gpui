@@ -560,7 +560,6 @@ impl HerdrWindow {
         self.sync_window_title(window);
     }
 
-
     /// Agent turns are watched on every enabled, connected host this client
     /// may run Git on, and finished restores are reported wherever the user is.
     fn update_checkpoints(&mut self, cx: &mut Context<Self>) {
