@@ -5,6 +5,8 @@ mod agents;
 mod cell;
 mod host_row;
 mod hover;
+pub(crate) mod inspector;
+mod inspector_fields;
 mod layout;
 mod layouts;
 mod metrics;
