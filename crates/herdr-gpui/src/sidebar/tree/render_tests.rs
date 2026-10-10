@@ -20,8 +20,8 @@ fn orchestrator_row_is_a_diamond_with_an_orchestrator_second_line() {
 fn worker_rows_show_the_status_glyph_name_and_state_word() {
     for (status, name, left, right) in [
         (AgentStatus::Working, "gapfk", "\u{25d0} gapfk", "working"),
-        (AgentStatus::Blocked, "glimpact", "! glimpact", "blocked"),
-        (AgentStatus::Idle, "a1", "\u{25cc} a1", "idle"),
+        (AgentStatus::Blocked, "glimpact", "\u{d7} glimpact", "blocked"),
+        (AgentStatus::Idle, "a1", "\u{25cb} a1", "idle"),
         (AgentStatus::Done, "glhist", "\u{2713} glhist", "done"),
     ] {
         assert_eq!(format!("{} {name}", status_symbol(status)), left);
@@ -33,7 +33,7 @@ fn worker_rows_show_the_status_glyph_name_and_state_word() {
 fn failed_workers_show_a_cross_instead_of_a_star() {
     assert_eq!(
         format!("{} s1", status_symbol(AgentStatus::Unknown)),
-        "? s1"
+        "\u{b7} s1"
     );
 }
 
