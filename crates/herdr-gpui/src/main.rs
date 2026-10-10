@@ -60,6 +60,7 @@ mod herdr_settings;
 mod icon_font_notice;
 mod icons;
 mod input;
+mod inspector;
 mod integrations;
 mod keymap;
 mod lenient;

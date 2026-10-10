@@ -37,6 +37,8 @@ mod host_nesting;
 #[cfg(test)]
 mod host_wash;
 #[cfg(test)]
+mod inspector_panel;
+#[cfg(test)]
 mod layouts;
 #[cfg(test)]
 mod listening_ports;
@@ -547,6 +549,8 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         install_warning_shown: false,
         version_notice_shown: false,
         collapsed_repos: Default::default(),
+        inspector_focus: cx.focus_handle(),
+        last_inspected: None,
         wheel: WheelAccumulator::default(),
         sidebar_width: None,
         sidebar_drag: None,

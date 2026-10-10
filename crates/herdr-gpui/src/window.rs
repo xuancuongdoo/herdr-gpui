@@ -66,6 +66,7 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use herdr_client::{ConnectOptions, ConnectTarget};
+use herdr_client::protocol::ClientShellAgent;
 #[cfg(feature = "integration-test")]
 use std::sync::Arc;
 use std::time::Duration;
@@ -228,6 +229,8 @@ pub(crate) struct HerdrWindow {
     /// once it has none, so a later refusal is announced again.
     pub(crate) version_notice_shown: bool,
     pub(crate) collapsed_repos: std::collections::HashSet<String>,
+    pub(crate) inspector_focus: FocusHandle,
+    pub(crate) last_inspected: Option<ClientShellAgent>,
     /// Expanded; collapsed leaves the rail or nothing, as Herdr's
     /// `ui.sidebar_collapsed_mode` chooses (see `sidebar_mode`).
     pub(crate) sidebar_visible: bool,
@@ -390,6 +393,14 @@ impl HerdrWindow {
         }
     }
 
+    pub(crate) fn selected_agent_view(&self) -> Option<ClientShellAgent> {
+        self.live.snapshot.as_deref()?.agents.iter().find(|agent| agent.focused).cloned()
+    }
+    pub(crate) fn remember_inspected(&mut self) {
+        if let Some(agent) = self.selected_agent_view() {
+            self.last_inspected = Some(agent);
+        }
+    }
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.updater.poll() {
             match self.updater.commit_restart() {
@@ -421,6 +432,7 @@ impl HerdrWindow {
         };
         let old_tab = focused_tab(&self.live);
         self.poll_endpoints(cx);
+        self.remember_inspected();
         if self
             .icon_font_notice
             .observe(self.config.icon_font_missing, self.live.surface.as_deref())
@@ -838,6 +850,8 @@ impl HerdrWindow {
             install_warning_shown: false,
             version_notice_shown: false,
             collapsed_repos: Default::default(),
+            inspector_focus: cx.focus_handle(),
+            last_inspected: None,
             sidebar_visible: true,
             sidebar_start_pending: true,
             device_filter: None,
