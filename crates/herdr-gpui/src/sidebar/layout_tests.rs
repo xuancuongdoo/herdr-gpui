@@ -571,6 +571,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         mission_ids: Vec::new(),
         mission_mid: Default::default(),
         tree_collapsed: Default::default(),
+        sidebar_status_filter: Default::default(),
         avatars: None,
         #[cfg(feature = "integration-test")]
         input_probe: crate::smoke::InputProbe::default(),

@@ -55,6 +55,32 @@ impl HerdrWindow {
     /// The agents the panel paints, by host index, in its order. Painting
     /// and stepping both read it, so a shortcut lands on the row below.
     pub(super) fn panel_agents(&self) -> Vec<(usize, &ClientShellAgent)> {
+        if self.agent_sort == crate::preferences::AgentSort::Grouped {
+            let query = self.sidebar_search.query().unwrap_or("");
+            let filter = self.sidebar_status_filter;
+            return self
+                .listed_hosts()
+                .flat_map(|(index, snapshot)| {
+                    let label = &self.endpoints[index].label;
+                    super::tree::render::visible_agent_panes(
+                        snapshot,
+                        label,
+                        query,
+                        filter,
+                        &self.tree_collapsed,
+                    )
+                    .into_iter()
+                    .filter_map(|pane_id| {
+                        snapshot
+                            .agents
+                            .iter()
+                            .find(|agent| agent.pane_id == pane_id)
+                            .map(|agent| (index, agent))
+                    })
+                    .collect::<Vec<_>>()
+                })
+                .collect();
+        }
         panel_agents(self.listed_lives(), self.agent_sort)
     }
 

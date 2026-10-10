@@ -105,6 +105,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
     }));
     cx.bind_keys(crate::log_window::key_bindings());
     cx.bind_keys(crate::settings_window::key_bindings());
+    cx.bind_keys(crate::sidebar::keys::key_bindings());
     let [cut, copy, paste, select_all] = EDIT_KEYS;
     cx.bind_keys([
         KeyBinding::new(cut, Cut, Some(EDIT_MENU_LABELS)),

@@ -277,6 +277,7 @@ pub(crate) struct HerdrWindow {
     /// Which mission each identity was fetched from.
     pub(crate) mission_mid: std::collections::HashMap<String, String>,
     pub(crate) tree_collapsed: std::collections::HashSet<String>,
+    pub(crate) sidebar_status_filter: sidebar::keys::StatusFilter,
     pub(crate) avatars: Option<avatars::Avatars>,
     #[cfg(feature = "integration-test")]
     pub(crate) input_probe: smoke::InputProbe,
@@ -918,6 +919,7 @@ impl HerdrWindow {
             mission_ids: sidebar::mission_ui::mission_ids_from_env(),
             mission_mid: Default::default(),
             tree_collapsed: Default::default(),
+            sidebar_status_filter: Default::default(),
             avatars: None,
             #[cfg(feature = "integration-test")]
             input_probe: smoke::InputProbe::default(),

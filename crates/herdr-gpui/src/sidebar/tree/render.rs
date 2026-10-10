@@ -22,39 +22,7 @@ use herdr_client::protocol::{AgentStatus, ClientShellAgent, ClientShellSnapshot}
 use std::collections::{HashMap, HashSet};
 use unicode_width::UnicodeWidthStr;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum StatusFilter {
-    #[default]
-    All,
-    #[cfg(test)]
-    Done,
-}
-
-impl StatusFilter {
-    pub(crate) fn matches(self, _status: AgentStatus) -> bool {
-        match self {
-            Self::All => true,
-            #[cfg(test)]
-            Self::Done => _status == AgentStatus::Done,
-        }
-    }
-}
-
-pub(crate) fn matches_agent(
-    name: &str,
-    status: AgentStatus,
-    search: &str,
-    filter: StatusFilter,
-) -> bool {
-    if !filter.matches(status) {
-        return false;
-    }
-    let query = search.trim();
-    if query.is_empty() {
-        return true;
-    }
-    name.to_lowercase().contains(&query.to_lowercase())
-}
+use super::super::keys::{StatusFilter, matches_agent};
 type FilterAgent = (String, String, String, Vec<(String, String)>, AgentStatus);
 /// Guide prefix for a row: `│  `/blank per ancestor plus `├─ `/`└─ ` for
 /// itself. Fold parents keep only the ancestor guides so the vertical `│`
@@ -437,6 +405,43 @@ pub(in crate::sidebar) fn filter_visible(
         .map(|(agent, _)| agent.clone())
         .collect()
 }
+pub(in crate::sidebar) fn visible_agent_panes(
+    snapshot: &ClientShellSnapshot,
+    endpoint_label: &str,
+    search: &str,
+    status_filter: StatusFilter,
+    collapsed: &HashSet<String>,
+) -> Vec<String> {
+    let devices = vec![(
+        endpoint_label.to_owned(),
+        snapshot
+            .workspaces
+            .iter()
+            .map(|w| (w.workspace_id.clone(), w.label.clone()))
+            .collect(),
+    )];
+    let input: Vec<_> = snapshot
+        .agents
+        .iter()
+        .map(|agent| {
+            (
+                agent.workspace_id.clone(),
+                agent.pane_id.clone(),
+                agent_name(agent).to_owned(),
+                agent.tokens.clone(),
+                agent.agent_status,
+            )
+        })
+        .collect();
+    let visible = filter_visible(&input, search, status_filter);
+    build_agent_tree_with_status(&devices, &visible, collapsed)
+        .into_iter()
+        .filter_map(|row| match row.node {
+            TreeNode::Agent { pane_id, .. } => Some(pane_id),
+            _ => None,
+        })
+        .collect()
+}
 
 /// Renders the device → space → agent rows for one endpoint snapshot.
 /// Fold state comes from `GroupedCtx::collapsed` (`dev:`/`ws:`/`job:` keys
@@ -799,6 +804,7 @@ impl HerdrWindow {
         let theme = &self.theme;
         let content_x = look.content_x();
         let agents_custom = self.custom_agent_rows();
+        let query = self.sidebar_search.query().unwrap_or("");
         let mut list_rows = 0usize;
         let mut agent_count = 0usize;
         let mut focused = None;
@@ -839,8 +845,8 @@ impl HerdrWindow {
                 nest: 0.,
                 mark,
                 collapsed: &self.tree_collapsed,
-                search: "",
-                status_filter: StatusFilter::All,
+                search: query,
+                status_filter: self.sidebar_status_filter,
             };
             let outcome = render_grouped(list, &ctx, list_rows, agent_count, cx);
             list = outcome.agents;

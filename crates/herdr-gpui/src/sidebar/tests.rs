@@ -24,5 +24,6 @@ mod hierarchy;
 mod host_mark;
 mod row_text;
 mod space_groups;
+mod search_ime;
 mod statuses;
 mod sticky_hosts;

@@ -605,6 +605,12 @@ impl HerdrWindow {
         div()
             .id("sidebar")
             .debug_selector(|| "sidebar".into())
+            .key_context(super::keys::KEY_CONTEXT)
+            .on_action(cx.listener(
+                |this, _: &super::keys::SidebarCycleFilter, window, cx| {
+                    this.cycle_sidebar_filter(window, cx)
+                },
+            ))
             .relative()
             .w(px(width))
             .flex_none()

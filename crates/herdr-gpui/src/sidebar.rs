@@ -8,6 +8,7 @@ mod hover;
 pub(crate) mod inspector;
 mod inspector_fields;
 mod layout;
+pub(crate) mod keys;
 mod layouts;
 mod metrics;
 pub(crate) mod mission_ui;
