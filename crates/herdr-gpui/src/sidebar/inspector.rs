@@ -4,15 +4,14 @@
 //! (short model alias, `—` placeholders, elapsed from client first-seen)
 //! and the Overview field list (Workspace, Role, Model, Status + elapsed,
 //! Started). Missing values render `—`; nothing is fabricated.
-//! `render_inspector_sections` is the WP5 call site for the sections below
-//! the fields.
+//! `render_inspector_sections` renders the Delegation Graph below the fields.
 
 use super::agent_metrics::{
     AgentMetrics, FirstSeen, HostMetrics, MetricKind, metric_rows, metrics_for_pane,
 };
 use super::inspector_fields::{
-    InspectorField, agent_display_name, first_seen, format_elapsed, format_started,
-    inspector_fields, short_model, status_word,
+    InspectorField, agent_display_name, delegation_nodes, first_seen, format_elapsed,
+    format_started, inspector_fields, short_model, status_word,
 };
 use super::tree::model::is_orchestrator_role;
 use crate::HerdrWindow;
@@ -201,12 +200,65 @@ fn metrics_section(
         }))
 }
 
-/// WP5 call site: delegation, events and context sections plug in here.
-pub(crate) fn render_inspector_sections(_agent: Option<&ClientShellAgent>) {}
+pub(crate) fn render_inspector_sections(
+    agent: &ClientShellAgent,
+    agents: &[ClientShellAgent],
+    theme: &Theme,
+) -> impl IntoElement {
+    let nodes = delegation_nodes(agent, agents);
+    div()
+        .id("inspector-delegation")
+        .debug_selector(|| "inspector-delegation".into())
+        .flex()
+        .flex_col()
+        .gap_1()
+        .child(div().text_sm().child("Delegation Graph".to_owned()))
+        .when(nodes.is_empty(), |section| {
+            section.child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(theme.muted))
+                    .child("—".to_owned()),
+            )
+        })
+        .children(nodes.into_iter().map(|node| {
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap_1()
+                .text_xs()
+                .child(
+                    div()
+                        .flex_none()
+                        .whitespace_nowrap()
+                        .text_color(rgb(theme.muted))
+                        .child(node.prefix),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .text_color(rgb(status_color(node.status)))
+                        .child("●".to_owned()),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .when(node.current, |name| {
+                            name.font_weight(FontWeight::BOLD)
+                                .text_color(rgb(LINK_BLUE))
+                        })
+                        .child(node.name.to_owned()),
+                )
+        }))
+}
 
 pub(crate) fn inspector_panel(
     theme: &Theme,
     agent: Option<&ClientShellAgent>,
+    agents: &[ClientShellAgent],
     selected: InspectorTab,
     processes: Option<(&HashMap<String, Listing>, &FirstSeen)>,
     host: Option<HostMetrics>,
@@ -367,6 +419,5 @@ pub(crate) fn inspector_panel(
             ))
             .child(field("Started", format_started(first_wall), muted)),
     );
-    render_inspector_sections(Some(agent));
-    panel
+    panel.child(render_inspector_sections(agent, agents, theme))
 }

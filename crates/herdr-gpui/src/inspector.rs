@@ -71,6 +71,10 @@ impl HerdrWindow {
                 .child(crate::sidebar::inspector::inspector_panel(
                     &self.theme,
                     agent.as_ref(),
+                    self.live
+                        .snapshot
+                        .as_deref()
+                        .map_or(&[][..], |snapshot| snapshot.agents.as_slice()),
                     self.inspector_tab,
                     None,
                     Some(host),
