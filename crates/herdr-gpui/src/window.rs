@@ -236,6 +236,7 @@ pub(crate) struct HerdrWindow {
     pub(crate) collapsed_repos: std::collections::HashSet<String>,
     pub(crate) inspector_focus: FocusHandle,
     pub(crate) last_inspected: Option<ClientShellAgent>,
+    pub(crate) inspector_tab: sidebar::inspector::InspectorTab,
     /// Expanded; collapsed leaves the rail or nothing, as Herdr's
     /// `ui.sidebar_collapsed_mode` chooses (see `sidebar_mode`).
     pub(crate) sidebar_visible: bool,
@@ -883,6 +884,7 @@ impl HerdrWindow {
             collapsed_repos: Default::default(),
             inspector_focus: cx.focus_handle(),
             last_inspected: None,
+            inspector_tab: Default::default(),
             sidebar_visible: true,
             sidebar_start_pending: true,
             device_filter: None,

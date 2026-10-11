@@ -1,22 +1,114 @@
-//! Inspector panel content for the agent selected in the sidebar tree.
+//! Inspector panel: the mock's right column for the selected agent.
 //!
-//! Owned by lane sr-inspector (render only). Data layer
-//! (`InspectorField { label, value }` + `inspector_fields(agent)` in
-//! `sidebar/inspector_fields.rs`) is owned by lane sr-insp-fields and called
-//! here; selection (`HerdrWindow::selected_agent_view()` +
-//! `last_inspected`) is owned by sr-insp-select; the right-hand slot,
-//! `INSPECTOR_WIDTH`, `INSPECTOR_MIN_WINDOW_WIDTH` and `inspector_visible`
-//! are owned by sr-insp-layout. This file renders whatever
-//! `Option<&ClientShellAgent>` the caller hands it, so keep-last works by
-//! the caller passing the last known agent when the live snapshot no longer
-//! contains it. Missing values arrive as "—" from the data layer; nothing is
-//! fabricated here.
+//! Header (colored tile, name, role pill, status dot + pill), meta row
+//! (short model alias, `—` placeholders, elapsed from client first-seen)
+//! and the Overview field list (Workspace, Role, Model, Status + elapsed,
+//! Started). Missing values render `—`; nothing is fabricated.
+//! `render_inspector_sections` is the WP5 call site for the sections below
+//! the fields.
 
-use super::inspector_fields::{InspectorField, inspector_fields};
+use super::inspector_fields::{
+    InspectorField, agent_display_name, first_seen, format_elapsed, format_started,
+    inspector_fields, short_model, status_word,
+};
+use super::tree::model::is_orchestrator_role;
+use crate::HerdrWindow;
+use crate::config::Theme;
 use gpui::{prelude::*, *};
-use herdr_client::protocol::ClientShellAgent;
+use herdr_client::protocol::{AgentStatus, ClientShellAgent};
 
-fn row(field: &InspectorField) -> Div {
+const ACCENT_BLUE: u32 = 0x0078E8;
+const LINK_BLUE: u32 = 0x0098F8;
+const IDLE_GREEN: u32 = 0x00D080;
+const WORKING_YELLOW: u32 = 0xF0D058;
+const BLOCKED_RED: u32 = 0xF02838;
+const ORCHESTRATOR_PURPLE: u32 = 0x9850F8;
+const WORKER_GREEN: u32 = 0x00C878;
+const UNKNOWN_GREY: u32 = 0x8A90B8;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum InspectorTab {
+    #[default]
+    Overview,
+    Context,
+    Budget,
+    Config,
+    Metrics,
+}
+impl InspectorTab {
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Overview,
+        Self::Context,
+        Self::Budget,
+        Self::Config,
+        Self::Metrics,
+    ];
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Overview => "Overview",
+            Self::Context => "Context",
+            Self::Budget => "Budget",
+            Self::Config => "Config",
+            Self::Metrics => "Metrics",
+        }
+    }
+}
+fn tab_strip(
+    selected: InspectorTab,
+    theme: &Theme,
+    cx: &mut Context<HerdrWindow>,
+) -> impl IntoElement {
+    div()
+        .id("inspector-tabs")
+        .debug_selector(|| "inspector-tabs".into())
+        .flex()
+        .flex_row()
+        .flex_wrap()
+        .gap_1()
+        .children(InspectorTab::ALL.into_iter().map(|tab| {
+            let label = tab.label();
+            div()
+                .id(("inspector-tab", tab as usize))
+                .debug_selector(move || format!("inspector-tab-{label}"))
+                .px_1()
+                .py(px(2.))
+                .rounded_md()
+                .cursor_pointer()
+                .text_xs()
+                .text_color(rgb(if selected == tab {
+                    ACCENT_BLUE
+                } else {
+                    theme.muted
+                }))
+                .when(selected == tab, |el| el.bg(rgb(theme.active)))
+                .child(label.to_owned())
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.inspector_tab = tab;
+                    cx.notify();
+                }))
+        }))
+}
+
+fn status_color(status: AgentStatus) -> u32 {
+    match status {
+        AgentStatus::Idle | AgentStatus::Done => IDLE_GREEN,
+        AgentStatus::Working => WORKING_YELLOW,
+        AgentStatus::Blocked => BLOCKED_RED,
+        AgentStatus::Unknown => UNKNOWN_GREY,
+    }
+}
+
+fn pill(text: String, color: u32) -> Div {
+    div()
+        .px_1()
+        .rounded_md()
+        .border_1()
+        .border_color(rgb(color))
+        .text_color(rgb(color))
+        .text_xs()
+        .child(text)
+}
+
+fn field(label: &'static str, value: impl IntoElement, muted: u32) -> Div {
     div()
         .flex()
         .flex_row()
@@ -27,43 +119,177 @@ fn row(field: &InspectorField) -> Div {
                 .w_20()
                 .overflow_hidden()
                 .text_xs()
-                .child(field.label.to_owned()),
+                .text_color(rgb(muted))
+                .child(label.to_owned()),
         )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .truncate()
-                .text_xs()
-                .child(field.value.clone()),
-        )
+        .child(div().flex_1().min_w_0().truncate().text_xs().child(value))
 }
 
-/// Pure panel content: `agent` is already the selected-or-last-known agent.
-///
-/// Assumed caller (sr-insp-select): `HerdrWindow::selected_agent_view() ->
-/// Option<ClientShellAgent>` plus `last_inspected: Option<ClientShellAgent>`.
-/// Assumed mount (sr-insp-layout): right-hand slot calling
-/// `inspector_panel(last_or_selected.as_ref())` inside an `INSPECTOR_WIDTH`
-/// column hidden below `INSPECTOR_MIN_WINDOW_WIDTH` when `inspector_visible`.
-/// Assumed data (sr-insp-fields): `inspector_fields(agent:
-/// Option<&ClientShellAgent>) -> Vec<InspectorField>` with `label:
-/// &'static str, value: String`; `None` yields an empty vec.
-pub(crate) fn inspector_panel(agent: Option<&ClientShellAgent>) -> impl IntoElement {
-    let fields = inspector_fields(agent);
-    div()
+fn meta_item(text: String, muted: u32) -> Div {
+    div().text_xs().text_color(rgb(muted)).child(text)
+}
+
+fn field_value<'a>(rows: &'a [InspectorField], label: &str) -> &'a str {
+    rows.iter()
+        .find(|row| row.label == label)
+        .map(|row| row.value.as_str())
+        .unwrap_or("—")
+}
+
+/// WP5 call site: delegation, events and context sections plug in here.
+pub(crate) fn render_inspector_sections(_agent: Option<&ClientShellAgent>) {}
+
+pub(crate) fn inspector_panel(
+    theme: &Theme,
+    agent: Option<&ClientShellAgent>,
+    selected: InspectorTab,
+    cx: &mut Context<HerdrWindow>,
+) -> impl IntoElement {
+    let muted = theme.muted;
+    let mut panel = div()
         .id("inspector")
         .flex()
         .flex_col()
-        .gap_1()
+        .gap_2()
         .p_2()
         .overflow_y_scroll()
         .child(div().text_sm().child("Inspector".to_owned()))
-        .children(fields.iter().map(row))
-        .when(fields.is_empty(), |panel| {
-            panel.child(row(&InspectorField {
-                label: "Agent",
-                value: "—".to_owned(),
-            }))
-        })
+        .child(tab_strip(selected, theme, cx));
+    let Some(agent) = agent else {
+        return panel.child(field("Agent", "—".to_owned(), muted));
+    };
+    let rows = inspector_fields(Some(agent));
+    let role = field_value(&rows, "Role");
+    let orchestrator = is_orchestrator_role(role);
+    let model = short_model(field_value(&rows, "Model"));
+    let (first_instant, first_wall) = first_seen(&agent.pane_id);
+    let elapsed = format_elapsed(first_instant.elapsed());
+    let status = agent.agent_status;
+    let tile = if orchestrator {
+        ORCHESTRATOR_PURPLE
+    } else {
+        WORKER_GREEN
+    };
+    let role_color = if orchestrator {
+        ACCENT_BLUE
+    } else {
+        UNKNOWN_GREY
+    };
+    let dot = status_color(status);
+    panel = panel
+        .child(
+            div()
+                .id("inspector-header")
+                .debug_selector(|| "inspector-header".into())
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .w(px(28.))
+                        .h(px(28.))
+                        .flex_none()
+                        .rounded_md()
+                        .bg(rgb(tile))
+                        .text_sm()
+                        .child("⬢".to_owned()),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_sm()
+                        .child(agent_display_name(agent).to_owned()),
+                )
+                .child(pill(role.to_owned(), role_color))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap_1()
+                        .child(div().text_xs().text_color(rgb(dot)).child("●".to_owned()))
+                        .child(pill(status_word(status).to_owned(), dot)),
+                ),
+        )
+        .child(
+            div()
+                .id("inspector-meta")
+                .debug_selector(|| "inspector-meta".into())
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .gap_x_2()
+                .gap_y_1()
+                .child(meta_item(model.clone(), theme.foreground))
+                .child(meta_item("— tok".to_owned(), muted))
+                .child(meta_item("—".to_owned(), muted))
+                .child(meta_item("—".to_owned(), muted))
+                .child(meta_item(elapsed.clone(), muted)),
+        );
+    if selected != InspectorTab::Overview {
+        return panel.child(
+            div()
+                .id("inspector-empty")
+                .debug_selector(|| "inspector-empty".into())
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(div().text_xs().text_color(rgb(muted)).child("—".to_owned()))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(rgb(muted))
+                        .child("No data".to_owned()),
+                ),
+        );
+    }
+    let workspace = field_value(&rows, "Workspace");
+    panel = panel.child(
+        div()
+            .id("inspector-fields")
+            .debug_selector(|| "inspector-fields".into())
+            .flex()
+            .flex_col()
+            .gap_1()
+            .child(field("Workspace", workspace.to_owned(), muted))
+            .child(field("Role", role.to_owned(), muted))
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_none()
+                            .w_20()
+                            .overflow_hidden()
+                            .text_xs()
+                            .text_color(rgb(muted))
+                            .child("Model".to_owned()),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_xs()
+                            .text_color(rgb(LINK_BLUE))
+                            .child(model.clone()),
+                    ),
+            )
+            .child(field(
+                "Status",
+                format!("● {} {}", status_word(status), elapsed),
+                muted,
+            ))
+            .child(field("Started", format_started(first_wall), muted)),
+    );
+    render_inspector_sections(Some(agent));
+    panel
 }

@@ -201,3 +201,26 @@ fn inspector_hidden_below_min_window_width(cx: &mut gpui::TestAppContext) {
         "narrow window must hide the inspector"
     );
 }
+#[gpui::test]
+fn inspector_metrics_tab_hides_overview_fields(cx: &mut gpui::TestAppContext) {
+    use crate::sidebar::inspector::InspectorTab;
+    let (view, cx) = wide_window(selected_worker_snapshot(), cx);
+    assert!(cx.debug_bounds("inspector-tabs").is_some());
+    assert!(cx.debug_bounds("inspector-tab-Metrics").is_some());
+    assert!(cx.debug_bounds("inspector-fields").is_some());
+    cx.update(|_, cx| {
+        assert_eq!(view.read(cx).inspector_tab, InspectorTab::Overview);
+    });
+    let metrics = cx.debug_bounds("inspector-tab-Metrics").unwrap().center();
+    cx.simulate_click(metrics, Default::default());
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        window.refresh();
+        full_draw(window, cx).clear(cx);
+    });
+    cx.update(|_, cx| {
+        assert_eq!(view.read(cx).inspector_tab, InspectorTab::Metrics);
+    });
+    assert!(cx.debug_bounds("inspector-fields").is_none());
+    assert!(cx.debug_bounds("inspector-empty").is_some());
+}
