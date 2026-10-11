@@ -972,6 +972,7 @@ impl SettingsWindow {
                     this.save_native(move || Config::save_show_agents(show), cx);
                 })),
             )
+            .child(self.tree_view_control(cx))
             .child(self.preference_switch(
                 "settings-sidebar-search",
                 "Show search",
@@ -984,7 +985,6 @@ impl SettingsWindow {
             .child(self.sidebar_gap_control(cx))
     }
 }
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests;

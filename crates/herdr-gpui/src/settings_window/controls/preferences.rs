@@ -175,6 +175,20 @@ impl SettingsWindow {
                     )),
             )
     }
+
+    pub(super) fn tree_view_control(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        self.control_switch(
+            "settings-tree-view",
+            "Tree view",
+            self.config.tree_view,
+            true,
+        )
+        .debug_selector(|| "settings-tree-view".into())
+        .on_click(cx.listener(|this, _, _, cx| {
+            let on = !this.config.tree_view;
+            this.save_native(move || Config::save_tree_view(on), cx);
+        }))
+    }
 }
 
 #[cfg(test)]

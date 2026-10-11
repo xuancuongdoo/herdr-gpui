@@ -427,3 +427,29 @@ fn dialog_result_moves_out_once_without_losing_pending_registration() {
         Some((id, None)) if id == "list"
     ));
 }
+
+#[test]
+fn inbox_dirty_signal_wakes_registered_waker() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::{Wake, Waker};
+
+    struct Counter(AtomicUsize);
+    impl Wake for Counter {
+        fn wake(self: Arc<Self>) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    let mut bridge = bridge();
+    let counter = Arc::new(Counter(AtomicUsize::new(0)));
+    *bridge.wake.lock().unwrap() = Some(Waker::from(counter.clone()));
+    ConnectionBridge::signal_wake(&bridge.wake, &bridge.notified);
+    assert!(bridge.notified.load(Ordering::Acquire));
+    assert_eq!(counter.0.load(Ordering::SeqCst), 1);
+    // A detach keeps the slots, so the window's wait survives a reconnect.
+    let wake = bridge.wake.clone();
+    let notified = bridge.notified.clone();
+    bridge.detach(false);
+    assert!(Arc::ptr_eq(&wake, &bridge.wake));
+    assert!(Arc::ptr_eq(&notified, &bridge.notified));
+}

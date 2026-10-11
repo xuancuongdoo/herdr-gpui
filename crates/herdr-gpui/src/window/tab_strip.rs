@@ -475,7 +475,7 @@ impl HerdrWindow {
                         this.command(Command::Tab, window, cx);
                     })),
             )
-            .child(self.strip_room(ends, window))
+            .child(self.strip_room(ends, window, cx))
             .child(self.strip_button(
                 slot,
                 "split-editor",

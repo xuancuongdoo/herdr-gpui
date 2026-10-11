@@ -76,6 +76,7 @@ qa-menu = []
 # permission.
 mockup = ["gpui_platform/test-support"]
 integration-test = [
+  "gpui_platform/test-support",
   "objc2-app-kit/NSPasteboardItem",
   "dep:cocoa",
   "dep:core-graphics",

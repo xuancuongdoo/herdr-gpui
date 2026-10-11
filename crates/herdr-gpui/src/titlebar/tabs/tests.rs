@@ -72,15 +72,25 @@ fn the_tab_row_stands_in_for_the_header(cx: &mut TestAppContext) {
     assert!(navigation.left() >= toggle.right());
     assert!(navigation.right() <= header.right());
     assert!(cx.debug_bounds("strip-titlebar-leading").is_none());
-    // The strip ends with the account at the window's right edge.
+    // The strip ends with the account at the inspector slot's left edge
+    // (1200px window minus the mock 31% inspector width).
     let new_tab = cx.debug_bounds("new-tab").unwrap();
     assert_eq!(new_tab.top(), top);
     assert_eq!(new_tab.size.height, px(HEIGHT));
     let trailing = cx.debug_bounds("strip-titlebar-trailing").unwrap();
-    assert_eq!(trailing.right(), px(1200.));
+    assert_eq!(
+        trailing.right(),
+        px(1200. - crate::inspector::inspector_width(1200.))
+    );
     assert_eq!(
         cx.debug_bounds("titlebar-avatar").unwrap(),
-        Bounds::new(point(px(1200. - 34.), top + px(3.)), size(px(28.), px(28.)))
+        Bounds::new(
+            point(
+                px(1200. - crate::inspector::inspector_width(1200.) - 34.),
+                top + px(3.)
+            ),
+            size(px(28.), px(28.))
+        )
     );
     let room = cx.debug_bounds("strip-titlebar-room").unwrap();
     assert!(room.size.width >= px(DRAG_ROOM));
@@ -235,8 +245,9 @@ fn a_squeezed_strip_drops_back_and_forward_before_the_account(cx: &mut TestAppCo
     let leading = cx.debug_bounds("strip-titlebar-leading").unwrap();
     let new_tab = cx.debug_bounds("new-tab").unwrap();
     let room = cx.debug_bounds("strip-titlebar-room").unwrap();
-    let needed =
-        f32::from(leading.right() + (px(1200.) - new_tab.left()) - room.size.width) + DRAG_ROOM;
+    let trailing = cx.debug_bounds("strip-titlebar-trailing").unwrap();
+    let needed = f32::from(leading.right() + (trailing.right() - new_tab.left()) - room.size.width)
+        + DRAG_ROOM;
     // Too narrow for Back and Forward, wide enough for the rest.
     let width = needed - Style::NATIVE.width() / 2.;
     for _ in 0..2 {

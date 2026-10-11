@@ -813,12 +813,15 @@ impl Render for HerdrWindow {
                             .min_w_0()
                             .min_h_0()
                             .relative()
-                            .child(content)
+                            .when(self.panel_preset.show_terminal(), |column| {
+                                column.child(content)
+                            })
                             .children(self.render_notices(cx))
                             .when(self.status_bar_visible, |column| {
                                 column.child(self.render_status_bar(cx))
                             }),
-                    ),
+                    )
+                    .children(self.inspector_panel(window, cx)),
             )
             .when(merged, |root| root.children(self.render_worktree_banner()))
             .children(self.render_toasts(window, cx))

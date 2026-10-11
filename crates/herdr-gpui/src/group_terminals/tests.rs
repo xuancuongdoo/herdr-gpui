@@ -261,9 +261,8 @@ fn using_a_parked_group_swaps_its_connection_in(cx: &mut TestAppContext) {
                 inbox.dirty = true;
             }
             view.browser.terminals.parked.push(parked);
-            assert!(view.poll_group_terminals());
+            assert!(view.poll_group_terminals(cx));
             assert!(!view.browser.terminals.parked[0].live.notifications_lost);
-            let _ = cx;
         })
     });
     draw(cx);

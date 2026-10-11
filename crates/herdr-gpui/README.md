@@ -621,6 +621,7 @@ once. Set top-level `confirm_close_tab = false` to never ask for tabs
 (including their running processes), `confirm_close_pane = false` to close
 panes without asking, and `show_agents = false` to hide the Agents
 section and give Spaces the full sidebar height. All three default to `true`.
+Set `tree_view = false` for the flat pre-tree Agents list.
 The pane dialog's **Do not ask again** checkbox (click it or press Space) saves
 `confirm_close_pane = false` to `config-gpui.local.toml` once the close is sent. Saved edits apply automatically. The
 **Show agents** control in **Settings > Appearance > Sidebar layout** saves
@@ -3109,6 +3110,17 @@ inside the native paint callback. The first failure survives subsequent redraws.
 An intentionally wrong-width native fixture verifies exit code 1, useful diagnostics,
 and absence of an abort signal. Sidebar and notification drivers exit explicitly
 so AppKit termination cannot turn a failure into exit code 0.
+
+Background-safe sidebar capture (integration-test builds only): with
+`HERDR_TEST_SIDEBAR_CAPTURE=<absolute output.png>` set,
+`target/release/herdr-gpui --sidebar-test` draws the settled synthetic sidebar
+fixture and saves it straight from the renderer via `render_to_image`
+(`crates/herdr-gpui/src/smoke_sidebar.rs:75`, `crates/herdr-gpui/src/app.rs:101-112,350-353`).
+The capture window opens unfocused (`focus: false`) and never activates, touches
+no daemon, and drives no native pointer input (`sidebar::native_tests` untouched).
+Build with `cargo build --locked --release -p herdr-gpui --features integration-test`;
+the destination must be an absolute PNG path and any failure exits nonzero.
+Exercised 2026-10-07: `/tmp/sidebar-real.png` (115073 bytes), exit 0.
 
 GPUI 0.3.6's Wayland window retains its platform input handler during deferred
 native cleanup. `ElementInputHandler` holds a strong entity reference, which can

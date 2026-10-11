@@ -1,13 +1,18 @@
 //! The sidebar: spaces and agents, the rows that show them, and the hover
 //! menu a resting pointer opens.
 
+pub(crate) mod agent_metrics;
 mod agents;
 mod cell;
 mod host_row;
 mod hover;
+pub(crate) mod inspector;
+mod inspector_fields;
+pub(crate) mod keys;
 mod layout;
 mod layouts;
 mod metrics;
+pub(crate) mod mission_ui;
 mod note_line;
 mod order;
 pub(crate) mod preview;
@@ -18,6 +23,7 @@ mod row;
 mod search;
 mod sticky;
 mod tokens;
+pub(crate) mod tree;
 mod view;
 mod wash;
 mod workspaces;

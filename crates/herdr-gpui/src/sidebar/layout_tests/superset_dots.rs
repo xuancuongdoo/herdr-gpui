@@ -6,7 +6,7 @@ use super::*;
 #[gpui::test]
 fn superset_status_dots_stay_inside_their_icon_slot(cx: &mut gpui::TestAppContext) {
     use crate::config::LayoutMode;
-    let (view, cx) = cx.add_window_view(fixture_window);
+    let (view, cx) = cx.add_window_view(flat_fixture_window);
     cx.simulate_resize(size(px(800.), px(900.)));
     for (size, style) in [12., 20., 36.]
         .into_iter()

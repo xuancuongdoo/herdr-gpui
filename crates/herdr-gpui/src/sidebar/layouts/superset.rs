@@ -329,6 +329,49 @@ impl RowLayout for Superset {
             });
         shell(key, state, 0., line, cx)
     }
+    fn tree_agent(
+        &self,
+        key: &str,
+        state: RowState,
+        content: Div,
+        _lines: usize,
+        cx: &RowContext<'_>,
+    ) -> Div {
+        let theme = cx.theme;
+        let gap = cx.look.density.gap();
+        let row = div()
+            .debug_selector(|| format!("row-{key}"))
+            .relative()
+            .w_full()
+            .flex_none()
+            .flex()
+            .items_center()
+            .py(px(gap))
+            .pl(px(cx.look.content_x()))
+            .cursor_pointer();
+        let row = cx.mark.apply(row, key, &cx.look);
+        parts::mark(
+            row,
+            state,
+            (rgb(theme.active), wash(theme.foreground, 0x0d)),
+            theme,
+        )
+        .when(state.lift == RowLift::Lifted, |row| row.rounded(px(4.)))
+        .when(state.selected, |row| {
+            row.child(
+                div()
+                    .debug_selector(|| format!("highlight-{key}"))
+                    .absolute()
+                    .left_0()
+                    .top_0()
+                    .bottom_0()
+                    .w(px(STRIPE))
+                    .rounded_r(px(STRIPE))
+                    .bg(rgb(theme.foreground)),
+            )
+        })
+        .child(content)
+    }
 }
 
 #[cfg(test)]

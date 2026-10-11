@@ -60,6 +60,7 @@ mod herdr_settings;
 mod icon_font_notice;
 mod icons;
 mod input;
+mod inspector;
 mod integrations;
 mod keymap;
 mod lenient;
@@ -70,6 +71,7 @@ mod log_window;
 mod login_env;
 mod menu;
 mod menus;
+mod mission;
 #[cfg(feature = "mockup")]
 mod mockup;
 mod motion;

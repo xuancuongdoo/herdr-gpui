@@ -64,6 +64,7 @@ pub(super) fn status_priority(status: AgentStatus) -> u8 {
 pub(super) fn sorted_agents(
     snapshot: &ClientShellSnapshot,
     sort: crate::preferences::AgentSort,
+    tree_view: bool,
 ) -> Vec<&ClientShellAgent> {
     if snapshot.agent_view_label.is_some() {
         return snapshot
@@ -80,13 +81,70 @@ pub(super) fn sorted_agents(
     let mut ordered: Vec<_> = snapshot.agents.iter().collect();
     if sort == crate::preferences::AgentSort::Priority {
         ordered.sort_by_key(|agent| {
+            let pin = tree_view && super::tree::is_orchestrator(snapshot, agent);
             (
+                !pin,
                 std::cmp::Reverse(status_priority(agent.agent_status)),
                 std::cmp::Reverse(agent.state_change_seq),
             )
         });
     }
     ordered
+}
+
+pub(super) fn flat_off_order(
+    snapshot: &ClientShellSnapshot,
+    sort: crate::preferences::AgentSort,
+) -> Vec<(Option<&str>, &ClientShellAgent)> {
+    if snapshot.agent_view_label.is_none() && sort == crate::preferences::AgentSort::Grouped {
+        let mut ordered = Vec::new();
+        for (label, agents) in group_agents_by_space(snapshot) {
+            let mut first = Some(label);
+            for agent in agents {
+                ordered.push((first.take(), agent));
+            }
+        }
+        return ordered;
+    }
+    sorted_agents(snapshot, sort, false)
+        .into_iter()
+        .map(|agent| (None, agent))
+        .collect()
+}
+
+/// Agents grouped under their space for the `Grouped` (`spaces`) sort.
+///
+/// Workspaces stay in daemon order and each workspace's agents keep snapshot
+/// order. Workspaces without agents emit no group. Agents whose workspace is
+/// gone collect under a trailing `"unknown"` group so none vanish.
+pub(super) fn group_agents_by_space(
+    snapshot: &ClientShellSnapshot,
+) -> Vec<(&str, Vec<&ClientShellAgent>)> {
+    let mut groups = Vec::new();
+    for workspace in &snapshot.workspaces {
+        let agents: Vec<_> = snapshot
+            .agents
+            .iter()
+            .filter(|agent| agent.workspace_id == workspace.workspace_id)
+            .collect();
+        if !agents.is_empty() {
+            groups.push((workspace.label.as_str(), agents));
+        }
+    }
+    let known: std::collections::HashSet<&str> = snapshot
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.as_str())
+        .collect();
+    let orphans: Vec<_> = snapshot
+        .agents
+        .iter()
+        .filter(|agent| !known.contains(agent.workspace_id.as_str()))
+        .collect();
+    if !orphans.is_empty() {
+        groups.push(("unknown", orphans));
+    }
+    groups
 }
 
 /// Every listed host's agents in the order the panel paints them, with the
@@ -100,6 +158,7 @@ pub(super) fn sorted_agents(
 pub(super) fn panel_agents<'a>(
     hosts: impl IntoIterator<Item = (usize, &'a crate::state::LiveState)>,
     sort: crate::preferences::AgentSort,
+    tree_view: bool,
 ) -> Vec<(usize, &'a ClientShellAgent)> {
     let mut merge = sort == crate::preferences::AgentSort::Priority;
     let mut listed = 0;
@@ -111,7 +170,7 @@ pub(super) fn panel_agents<'a>(
         listed += 1;
         merge &= snapshot.agent_view_label.is_none();
         rows.extend(
-            sorted_agents(snapshot, sort)
+            sorted_agents(snapshot, sort, tree_view)
                 .into_iter()
                 .map(|agent| (index, live, agent)),
         );
@@ -119,7 +178,13 @@ pub(super) fn panel_agents<'a>(
     // One host is already in order; the stable merge would only repeat it.
     if merge && listed > 1 {
         rows.sort_by_key(|(_, live, agent)| {
+            let pin = tree_view
+                && live
+                    .snapshot
+                    .as_deref()
+                    .is_some_and(|snapshot| super::tree::is_orchestrator(snapshot, agent));
             (
+                !pin,
                 !live.status.is_connected(),
                 std::cmp::Reverse(status_priority(agent.agent_status)),
                 std::cmp::Reverse(live.agent_recency.of(&agent.pane_id)),
@@ -478,7 +543,7 @@ mod tests {
         snapshot: &herdr_client::protocol::ClientShellSnapshot,
         sort: crate::preferences::AgentSort,
     ) -> Vec<&str> {
-        sorted_agents(snapshot, sort)
+        sorted_agents(snapshot, sort, true)
             .into_iter()
             .map(|agent| agent.pane_id.as_str())
             .collect()

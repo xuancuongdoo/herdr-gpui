@@ -28,7 +28,7 @@ const MAX_DECODE_BYTES: u64 = 128 * 1024 * 1024;
 /// Textures are scaled to fit this side, which every GPUI atlas accepts.
 const MAX_TEXTURE_SIDE: u32 = 4_096;
 /// Decoded texture bytes kept per window.
-const MAX_TEXTURE_BYTES: usize = 256 * 1024 * 1024;
+const MAX_TEXTURE_BYTES: usize = 64 * 1024 * 1024;
 /// Textures, failures, and decodes in flight kept per window.
 const MAX_ENTRIES: usize = 128;
 /// Decodes running at once; further images wait for a later paint.

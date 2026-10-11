@@ -537,6 +537,7 @@ impl HerdrWindow {
         if agents_panel {
             (agents, agent_count, highlighted[1]) =
                 self.append_agent_rows(agents, indicators, look, width, cx);
+            (agents, agent_count) = self.append_mission_rows(agents, content_x, agent_count, cx);
         }
         if sliding {
             window.request_animation_frame();
@@ -603,6 +604,12 @@ impl HerdrWindow {
         div()
             .id("sidebar")
             .debug_selector(|| "sidebar".into())
+            .key_context(super::keys::KEY_CONTEXT)
+            .on_action(
+                cx.listener(|this, _: &super::keys::SidebarCycleFilter, window, cx| {
+                    this.cycle_sidebar_filter(window, cx)
+                }),
+            )
             .relative()
             .w(px(width))
             .flex_none()

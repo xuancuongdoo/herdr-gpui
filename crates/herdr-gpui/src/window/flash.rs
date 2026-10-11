@@ -50,9 +50,22 @@ impl Flash {
 
 impl HerdrWindow {
     /// Replaces whatever flash is up, so the newest gesture is the one answered.
+    /// A one-shot timer retires it at expiry even when the window is idle:
+    /// the frame loop stops then and `tick` runs at most every 500 ms, so
+    /// expiry waits on neither. A replaced flash keeps its own timer; the
+    /// older timer finds `now` before the newer expiry and does nothing.
     pub(crate) fn show_flash(&mut self, flash: Flash, cx: &mut Context<Self>) {
         self.flash = Some((flash, Instant::now() + FLASH_DURATION));
         cx.notify();
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(FLASH_DURATION).await;
+            let _ = this.update(cx, |view, cx| {
+                if view.tick_flash(Instant::now()) {
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     /// Retires the flash once its time is up. `true` when the window has to

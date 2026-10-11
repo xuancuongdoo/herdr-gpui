@@ -33,7 +33,7 @@ fn host(agents: &[(&str, AgentStatus)]) -> LiveState {
 }
 
 fn order<'a>(hosts: &[&'a LiveState], sort: AgentSort) -> Vec<(usize, &'a str)> {
-    panel_agents(hosts.iter().copied().enumerate(), sort)
+    panel_agents(hosts.iter().copied().enumerate(), sort, true)
         .into_iter()
         .map(|(index, agent)| (index, agent.pane_id.as_str()))
         .collect()

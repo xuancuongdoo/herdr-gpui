@@ -37,6 +37,8 @@ mod host_nesting;
 #[cfg(test)]
 mod host_wash;
 #[cfg(test)]
+mod inspector_panel;
+#[cfg(test)]
 mod layouts;
 #[cfg(test)]
 mod listening_ports;
@@ -68,6 +70,8 @@ mod sticky_hosts;
 mod superset_dots;
 #[cfg(test)]
 mod text_width;
+#[cfg(test)]
+mod tree_row_height;
 #[cfg(test)]
 mod update_notes;
 #[cfg(test)]
@@ -571,6 +575,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         marked_selection: None,
         hover: None,
         hover_menu: None,
+        frame_armed: false,
         local_error: None,
         menu: crate::menu::MenuState::new(cx),
         settings: Default::default(),
@@ -578,6 +583,10 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         install_warning_shown: false,
         version_notice_shown: false,
         collapsed_repos: Default::default(),
+        inspector_focus: cx.focus_handle(),
+        last_inspected: None,
+        inspector_tab: Default::default(),
+        panel_preset: Default::default(),
         wheel: WheelAccumulator::default(),
         sidebar_width: None,
         sidebar_drag: None,
@@ -589,6 +598,14 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_modified: false,
         agent_sort: Default::default(),
         agent_sort_modified: false,
+        mission_agents: Vec::new(),
+        mission_inflight: Default::default(),
+        mission_notes: Default::default(),
+        mission_disabled: Default::default(),
+        mission_ids: Vec::new(),
+        mission_mid: Default::default(),
+        tree_collapsed: Default::default(),
+        sidebar_status_filter: Default::default(),
         avatars: None,
         #[cfg(feature = "integration-test")]
         input_probe: crate::smoke::InputProbe::default(),
@@ -597,6 +614,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         sidebar_pin_reveal: Default::default(),
         sidebar_search: crate::sidebar::SidebarSearch::new(cx),
         _poll: Task::ready(()),
+        _wake: Task::ready(()),
         _activation: cx.observe_window_activation(window, |_, _, _| {}),
         _appearance: cx.observe_window_appearance(window, |this, _, cx| {
             this.apply_shared_theme(cx);
@@ -623,4 +641,13 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         shift_taps: Default::default(),
         _prefix_interceptor: HerdrWindow::intercept_prefix(window, cx),
     }
+}
+#[cfg(test)]
+pub(crate) fn flat_fixture_window(
+    window: &mut Window,
+    cx: &mut Context<HerdrWindow>,
+) -> HerdrWindow {
+    let mut view = fixture_window(window, cx);
+    view.agent_sort = crate::preferences::AgentSort::Priority;
+    view
 }
