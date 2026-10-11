@@ -259,6 +259,7 @@ pub(crate) struct HerdrWindow {
     pub(crate) last_inspected: Option<ClientShellAgent>,
     pub(crate) inspector_tab: sidebar::inspector::InspectorTab,
     pub(crate) panel_preset: PanelPreset,
+    pub(crate) agent_live: crate::inspector::live::AgentLive,
     /// Expanded; collapsed leaves the rail or nothing, as Herdr's
     /// `ui.sidebar_collapsed_mode` chooses (see `sidebar_mode`).
     pub(crate) sidebar_visible: bool,
@@ -498,6 +499,7 @@ impl HerdrWindow {
         let old_tab = focused_tab(&self.live);
         self.poll_endpoints(cx);
         self.remember_inspected();
+        self.poll_agent_live(cx);
         if self
             .icon_font_notice
             .observe(self.config.icon_font_missing, self.live.surface.as_deref())
@@ -872,6 +874,7 @@ impl HerdrWindow {
             collapsed_repos: Default::default(),
             inspector_focus: cx.focus_handle(),
             last_inspected: None,
+            agent_live: Default::default(),
             inspector_tab: Default::default(),
             panel_preset: Default::default(),
             sidebar_visible: true,
