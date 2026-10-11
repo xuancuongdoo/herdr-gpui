@@ -162,7 +162,9 @@ impl HerdrWindow {
                     .id("topbar-search")
                     .debug_selector(|| "topbar-search".into())
                     .flex()
-                    .flex_none()
+                    .flex_shrink(1.)
+                    .min_w_0()
+                    .overflow_hidden()
                     .items_center()
                     .gap(px(6.))
                     .h(px(24.))
@@ -178,9 +180,10 @@ impl HerdrWindow {
                         this.command(Command::Palette, window, cx);
                     }))
                     .text_color(rgb(self.theme.muted))
-                    .child("Search…")
+                    .child(div().min_w_0().truncate().child("Search…"))
                     .child(
                         div()
+                            .flex_none()
                             .px(px(4.))
                             .rounded(px(4.))
                             .border_1()

@@ -18,9 +18,10 @@ use std::time::Instant;
 
 impl HerdrWindow {
     /// Config warnings, then the daemon's announcement, stacked over the
-    /// top-right of the terminal area below the tab strip, whose buttons stay
-    /// reachable. A menu page owns the window's attention; they wait behind it.
-    fn render_notices(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    /// top-right of the terminal area below the tab strip and the top bar
+    /// row (`below` is that row's height), whose buttons stay reachable. A
+    /// menu page owns the window's attention; they wait behind it.
+    fn render_notices(&self, below: f32, cx: &mut Context<Self>) -> Option<AnyElement> {
         if self.menu.page.is_some() {
             return None;
         }
@@ -36,7 +37,7 @@ impl HerdrWindow {
         Some(
             div()
                 .absolute()
-                .top(px(self.tab_strip_height() + 8.))
+                .top(px(self.tab_strip_height() + below + 8.))
                 .left(px(8.))
                 .right(px(8.))
                 .flex()
@@ -680,6 +681,12 @@ impl Render for HerdrWindow {
         if self.present_browser(cx) {
             window.request_animation_frame();
         }
+        let notices_below =
+            if merged && self.panel_preset.show_terminal() && self.config.usage.topbar {
+                crate::titlebar::HEIGHT
+            } else {
+                0.
+            };
         let root = div()
             .capture_key_down(cx.listener(Self::application_menu_shortcut))
             .on_modifiers_changed(cx.listener(Self::double_shift_modifiers))
@@ -816,7 +823,12 @@ impl Render for HerdrWindow {
                             .when(self.panel_preset.show_terminal(), |column| {
                                 column.child(content)
                             })
-                            .children(self.render_notices(cx))
+                            // Tree only has no group to carry the top bar, but
+                            // its Panels buttons are the way back.
+                            .when(merged && !self.panel_preset.show_terminal(), |column| {
+                                column.children(self.strip_topbar(window, cx))
+                            })
+                            .children(self.render_notices(notices_below, cx))
                             .when(self.status_bar_visible, |column| {
                                 column.child(self.render_status_bar(cx))
                             }),
