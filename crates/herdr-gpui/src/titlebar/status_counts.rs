@@ -294,6 +294,8 @@ mod tests {
         let (view, cx) = cx.add_window_view(topbar_window);
         cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
         cx.update(|window, cx| {
+            crate::bind_keys(cx);
+            window.focus(&view.read(cx).focus.clone(), cx);
             window.refresh();
             window.draw(cx).clear(cx);
         });

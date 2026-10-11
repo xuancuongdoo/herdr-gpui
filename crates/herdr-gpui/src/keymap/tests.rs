@@ -94,7 +94,7 @@ fn configured_keystroke_moves_from_its_default_owner() {
     assert_eq!(list(&keymap, Command::Workspace), ["cmd-t"]);
     assert!(list(&keymap, Command::Tab).is_empty());
     // Spelling differences still name the same keystroke.
-    let keymap = with(&[("about", one("CMD-F"))]).unwrap();
+    let keymap = with(&[("about", one("CMD-f"))]).unwrap();
     assert!(list(&keymap, Command::Find).is_empty());
     let keys: Vec<_> = keymap.bindings().map(|(_, keystroke)| keystroke).collect();
     let unique: HashSet<_> = keys.iter().collect();
