@@ -111,6 +111,8 @@ pub(crate) fn inspector_panel(theme: &Theme, agent: Option<&ClientShellAgent>) -
     panel = panel
         .child(
             div()
+                .id("inspector-header")
+                .debug_selector(|| "inspector-header".into())
                 .flex()
                 .flex_row()
                 .items_center()
@@ -149,6 +151,8 @@ pub(crate) fn inspector_panel(theme: &Theme, agent: Option<&ClientShellAgent>) -
         )
         .child(
             div()
+                .id("inspector-meta")
+                .debug_selector(|| "inspector-meta".into())
                 .flex()
                 .flex_row()
                 .flex_wrap()
@@ -161,39 +165,46 @@ pub(crate) fn inspector_panel(theme: &Theme, agent: Option<&ClientShellAgent>) -
                 .child(meta_item(elapsed.clone(), muted)),
         );
     let workspace = field_value(&rows, "Workspace");
-    panel = panel
-        .child(field("Workspace", workspace.to_owned(), muted))
-        .child(field("Role", role.to_owned(), muted))
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .gap_2()
-                .child(
-                    div()
-                        .flex_none()
-                        .w_20()
-                        .overflow_hidden()
-                        .text_xs()
-                        .text_color(rgb(muted))
-                        .child("Model".to_owned()),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
-                        .text_xs()
-                        .text_color(rgb(LINK_BLUE))
-                        .child(model.clone()),
-                ),
-        )
-        .child(field(
-            "Status",
-            format!("● {} {}", status_word(status), elapsed),
-            muted,
-        ))
-        .child(field("Started", format_started(first_wall), muted));
+    panel = panel.child(
+        div()
+            .id("inspector-fields")
+            .debug_selector(|| "inspector-fields".into())
+            .flex()
+            .flex_col()
+            .gap_1()
+            .child(field("Workspace", workspace.to_owned(), muted))
+            .child(field("Role", role.to_owned(), muted))
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_none()
+                            .w_20()
+                            .overflow_hidden()
+                            .text_xs()
+                            .text_color(rgb(muted))
+                            .child("Model".to_owned()),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_xs()
+                            .text_color(rgb(LINK_BLUE))
+                            .child(model.clone()),
+                    ),
+            )
+            .child(field(
+                "Status",
+                format!("● {} {}", status_word(status), elapsed),
+                muted,
+            ))
+            .child(field("Started", format_started(first_wall), muted)),
+    );
     render_inspector_sections(Some(agent));
     panel
 }
