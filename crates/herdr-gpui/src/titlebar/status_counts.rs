@@ -185,7 +185,7 @@ impl HerdrWindow {
                             .rounded(px(4.))
                             .border_1()
                             .border_color(rgb(self.theme.active))
-                            .child("⌘K"),
+                            .child(self.config.keybindings.primary(Command::Palette).to_owned()),
                     ),
             )
             .child(
