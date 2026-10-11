@@ -69,7 +69,7 @@ fn dot(color: u32) -> Div {
 }
 
 impl HerdrWindow {
-    pub(super) fn render_topbar(&self, _window: &mut Window, cx: &mut Context<Self>) -> Div {
+    pub(super) fn render_topbar(&self, cx: &mut Context<Self>) -> Div {
         let snapshot = self.live.snapshot.clone();
         let label = snapshot
             .as_deref()
@@ -83,7 +83,6 @@ impl HerdrWindow {
         div()
             .debug_selector(|| "topbar".into())
             .flex()
-            .flex_1()
             .min_w_0()
             .h_full()
             .items_center()

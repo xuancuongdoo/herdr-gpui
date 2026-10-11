@@ -220,9 +220,15 @@ impl HerdrWindow {
 
     /// The room after a strip's tabs: it moves the window when the strip
     /// stands in for the header, and simply fills the row otherwise. The
-    /// rightmost one also shows the usage the header's center would, which
-    /// truncates before the room gets too small to grab.
-    pub(crate) fn strip_room(&self, ends: Option<Ends>, window: &Window) -> Div {
+    /// rightmost one also shows the header's top bar and usage, which
+    /// truncate before the room gets too small to grab. The top bar does
+    /// not grow: the room takes what the tabs leave, and it clips.
+    pub(crate) fn strip_room(
+        &self,
+        ends: Option<Ends>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let room = div().flex_1().min_w_0();
         let Some(ends) = ends else {
             return room;
@@ -232,11 +238,12 @@ impl HerdrWindow {
             .flex()
             .pl(px(DRAG_ROOM))
             .when(ends.trailing && self.config.usage.topbar, |room| {
-                room.child(super::status::render(
-                    &self.live,
-                    &self.config.ui,
-                    &self.theme,
-                ))
+                room.child(self.render_topbar(cx))
+                    .child(super::status::render(
+                        &self.live,
+                        &self.config.ui,
+                        &self.theme,
+                    ))
             });
         movable(room, window)
     }
