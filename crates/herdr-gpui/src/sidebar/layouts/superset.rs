@@ -329,7 +329,14 @@ impl RowLayout for Superset {
             });
         shell(key, state, 0., line, cx)
     }
-    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+    fn tree_agent(
+        &self,
+        key: &str,
+        state: RowState,
+        content: Div,
+        _lines: usize,
+        cx: &RowContext<'_>,
+    ) -> Div {
         let theme = cx.theme;
         let gap = cx.look.density.gap();
         let row = div()

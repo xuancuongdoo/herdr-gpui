@@ -342,47 +342,51 @@ fn tree_agent_row(
     } else {
         guides.to_owned()
     };
+    let notes: Vec<String> = lines
+        .iter()
+        .filter_map(|row| {
+            let kept: Vec<&ResolvedToken> = row
+                .iter()
+                .filter(|token| {
+                    matches!(
+                        &token.kind,
+                        TokenKind::Text(_, TextRole::Status | TextRole::Muted)
+                    )
+                })
+                .collect();
+            let mut text = String::new();
+            for (i, token) in kept.iter().enumerate() {
+                if i > 0 {
+                    text.push_str(separator(kept[i - 1], token));
+                }
+                if let Some(s) = token.kind.text() {
+                    text.push_str(s);
+                }
+            }
+            (!text.is_empty()).then(|| format!("{continuation}  {text}"))
+        })
+        .collect();
+    let line_count = 1 + notes.len();
     let mut column = div()
         .w(px(content))
         .flex_none()
         .flex()
         .flex_col()
         .child(line);
-    for row in &lines {
-        let mut kept: Vec<&ResolvedToken> = Vec::new();
-        for token in row {
-            if let TokenKind::Text(_, TextRole::Status | TextRole::Muted) = &token.kind {
-                kept.push(token)
-            }
-        }
-        if kept.is_empty() {
-            continue;
-        }
-        let mut text = String::new();
-        for (i, token) in kept.iter().enumerate() {
-            if i > 0 {
-                text.push_str(separator(kept[i - 1], token));
-            }
-            if let Some(s) = token.kind.text() {
-                text.push_str(s);
-            }
-        }
-        if text.is_empty() {
-            continue;
-        }
-        let full = format!("{continuation}  {text}");
+    for (i, full) in notes.iter().enumerate() {
         column = column.child(
             div()
+                .debug_selector(|| format!("note-{key}-{i}"))
                 .w(px(content))
                 .flex_none()
                 .overflow_hidden()
                 .whitespace_nowrap()
                 .truncate()
                 .text_color(rgb(theme.muted))
-                .child(label_text(&full)),
+                .child(label_text(full)),
         );
     }
-    let row = ctx.rows.tree_agent(&key, state, column, row_cx);
+    let row = ctx.rows.tree_agent(&key, state, column, line_count, row_cx);
     row.id(SharedString::from(format!(
         "tree-agent-{}-{}",
         ctx.endpoint_id, agent.pane_id

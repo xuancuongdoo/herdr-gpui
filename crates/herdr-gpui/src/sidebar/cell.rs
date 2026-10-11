@@ -140,11 +140,18 @@ pub(super) struct RowState {
 pub(super) trait RowLayout {
     fn workspace(&self, row: WorkspaceRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
     fn agent(&self, row: AgentRow<'_>, state: RowState, cx: &RowContext<'_>) -> Div;
-    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+    fn tree_agent(
+        &self,
+        key: &str,
+        state: RowState,
+        content: Div,
+        lines: usize,
+        cx: &RowContext<'_>,
+    ) -> Div {
         let look = cx.look;
         div()
             .debug_selector(|| format!("row-{key}"))
-            .h(px(look.row_height(line_height(cx.font))))
+            .h(px(look.row_height(line_height(cx.font) * lines as f32)))
             .w_full()
             .min_w_0()
             .flex_none()
