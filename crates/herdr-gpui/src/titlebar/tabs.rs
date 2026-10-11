@@ -5,7 +5,8 @@
 //! that no longer fit in the sidebar, and the rightmost one ends with git, account,
 //! and window controls, with the header's usage text before them. Every
 //! strip keeps empty room that moves the window, however many tabs it holds;
-//! more tabs than fit still scroll.
+//! more tabs than fit still scroll. The header's top bar takes a row of its
+//! own under the rightmost strip, so tabs never squeeze it.
 
 use super::{
     HEIGHT, LEADING, SIDEBAR_TOGGLE_MARGIN, SIDEBAR_TOGGLE_SIZE, movable, navigation::Style,
@@ -16,9 +17,6 @@ use gpui::{prelude::*, *};
 /// Empty room a strip keeps after its tabs so the window can always be
 /// moved from it, even when its tabs overflow.
 pub(crate) const DRAG_ROOM: f32 = 40.;
-
-const TOPBAR_MIN: f32 = 360.;
-const TOPBAR_WINDOW: f32 = 1400.;
 
 /// How readily the strip's leading controls give up width: far less than the
 /// tabs, which shrink first, so they only narrow once the tabs have none.
@@ -223,15 +221,9 @@ impl HerdrWindow {
 
     /// The room after a strip's tabs: it moves the window when the strip
     /// stands in for the header, and simply fills the row otherwise. The
-    /// rightmost one also shows the header's top bar and usage, which
-    /// truncate before the room gets too small to grab. The top bar does
-    /// not grow: the room takes what the tabs leave, and it clips.
-    pub(crate) fn strip_room(
-        &self,
-        ends: Option<Ends>,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> Div {
+    /// rightmost one also shows the usage the header's center would, which
+    /// truncates before the room gets too small to grab.
+    pub(crate) fn strip_room(&self, ends: Option<Ends>, window: &Window) -> Div {
         let room = div().flex_1().min_w_0();
         let Some(ends) = ends else {
             return room;
@@ -241,23 +233,31 @@ impl HerdrWindow {
             .flex()
             .pl(px(DRAG_ROOM))
             .when(ends.trailing && self.config.usage.topbar, |room| {
-                let wide = window.viewport_size().width >= px(TOPBAR_WINDOW);
-                room.when(wide, |room| {
-                    room.flex_basis(px(DRAG_ROOM + TOPBAR_MIN))
-                        .flex_shrink(NAVIGATION_SHRINK)
-                        .overflow_hidden()
-                })
-                .child(
-                    self.render_topbar(cx)
-                        .when(wide, |bar| bar.min_w(px(TOPBAR_MIN))),
-                )
-                .child(super::status::render(
+                room.child(super::status::render(
                     &self.live,
                     &self.config.ui,
                     &self.theme,
                 ))
             });
         movable(room, window)
+    }
+
+    /// The header's top bar on a row of its own under the rightmost strip.
+    /// It never shares a row with tabs, so they cannot squeeze it.
+    pub(crate) fn strip_topbar(&self, window: &Window, cx: &mut Context<Self>) -> Option<Div> {
+        self.config.usage.topbar.then(|| {
+            movable(
+                div()
+                    .debug_selector(|| "strip-topbar".into())
+                    .flex()
+                    .flex_none()
+                    .w_full()
+                    .h(px(HEIGHT))
+                    .bg(rgb(self.theme.surface).blend(rgba(0xffffff1a)))
+                    .child(self.render_topbar(cx).flex_1()),
+                window,
+            )
+        })
     }
 }
 

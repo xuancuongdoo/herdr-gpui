@@ -1,22 +1,22 @@
-//! With Herdr's tab bar at the top the strip stands in for the header, so
-//! the top bar has to show in the strip's trailing room.
+//! With Herdr's tab bar at the top the strip stands in for the header, and
+//! the header's top bar gets a row of its own under the strip.
 use super::*;
 
 #[gpui::test]
-fn titlebar_topbar_shows_in_the_merged_strip(cx: &mut TestAppContext) {
+fn titlebar_topbar_sits_on_its_own_row_under_the_merged_strip(cx: &mut TestAppContext) {
     let (_, cx) = shared_tabs(cx, &["a", "b"], "tab_bar_position = 'top'");
     assert!(cx.debug_bounds("titlebar-center").is_none());
-    let strip = cx.debug_bounds("strip-titlebar-room").unwrap();
+    let room = cx.debug_bounds("strip-titlebar-room").unwrap();
+    let row = cx.debug_bounds("strip-topbar").unwrap();
     let topbar = cx.debug_bounds("topbar").unwrap();
-    assert!(topbar.left() >= strip.left(), "{topbar:?} {strip:?}");
+    assert!(row.top() >= room.bottom(), "{row:?} {room:?}");
+    assert_eq!(topbar.size.width, row.size.width);
     assert!(cx.debug_bounds("topbar-brand").is_some());
     assert!(cx.debug_bounds("topbar-search").is_some());
-    let tab = cx.debug_bounds("tab-b").unwrap();
-    assert!(tab.right() <= strip.left() + px(0.5), "{tab:?} {strip:?}");
 }
 
 #[gpui::test]
-fn titlebar_topbar_keeps_its_width_when_the_tabs_fill_the_row(cx: &mut TestAppContext) {
+fn titlebar_topbar_stays_whole_when_the_tabs_fill_the_row(cx: &mut TestAppContext) {
     let ids = [
         "alpha-service-deployment-pipeline",
         "bravo-service-deployment-pipeline",
@@ -29,8 +29,13 @@ fn titlebar_topbar_keeps_its_width_when_the_tabs_fill_the_row(cx: &mut TestAppCo
     cx.simulate_resize(size(px(1400.), px(600.)));
     draw(cx);
     draw(cx);
-    let topbar = cx.debug_bounds("topbar").unwrap();
-    assert!(topbar.size.width >= px(360.), "{topbar:?}");
-    let search = cx.debug_bounds("topbar-search").unwrap();
-    assert!(search.right() <= px(1400.), "{search:?}");
+    let room = cx.debug_bounds("strip-titlebar-room").unwrap();
+    let row = cx.debug_bounds("strip-topbar").unwrap();
+    assert!(row.top() >= room.bottom(), "{row:?} {room:?}");
+    assert!(row.right() <= px(1400.), "{row:?}");
+    for part in ["topbar-brand", "topbar-search", "topbar-help"] {
+        let bounds = cx.debug_bounds(part).unwrap();
+        assert!(bounds.left() >= row.left(), "{part} {bounds:?} {row:?}");
+        assert!(bounds.right() <= row.right(), "{part} {bounds:?} {row:?}");
+    }
 }

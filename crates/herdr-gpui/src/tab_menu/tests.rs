@@ -203,7 +203,6 @@ fn group_window(cx: &mut TestAppContext) -> (Entity<HerdrWindow>, &mut VisualTes
         shown.focused_workspace_id = Some("w0".into());
         shown.focused_tab_id = Some("t0".into());
         view.live.snapshot = Some(Arc::new(shown));
-        view.config.usage.topbar = false;
         view
     })
 }

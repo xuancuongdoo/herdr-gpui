@@ -475,7 +475,7 @@ impl HerdrWindow {
                         this.command(Command::Tab, window, cx);
                     })),
             )
-            .child(self.strip_room(ends, window, cx))
+            .child(self.strip_room(ends, window))
             .child(self.strip_button(
                 slot,
                 "split-editor",
@@ -802,6 +802,9 @@ impl HerdrWindow {
     ) -> AnyElement {
         let strip = (!self.strip_hidden(slot.id, cx))
             .then(|| self.render_tab_strip(slot, ends, window, cx));
+        let topbar = ends
+            .filter(|ends| ends.trailing)
+            .and_then(|_| self.strip_topbar(window, cx));
         let bottom = self.tab_bar_position() == TabBarPosition::Bottom;
         let share = (self.is_split() || !self.folding_groups().is_empty())
             .then(|| self.group_share(slot.id));
@@ -827,9 +830,9 @@ impl HerdrWindow {
                 }
             }))
             .map(|column| match (strip, bottom) {
-                (Some(strip), false) => column.child(strip).child(body),
+                (Some(strip), false) => column.child(strip).children(topbar).child(body),
                 (Some(strip), true) => column.child(body).child(strip),
-                (None, _) => column.child(body),
+                (None, _) => column.children(topbar).child(body),
             });
         div()
             .flex()
