@@ -70,7 +70,6 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 
-use herdr_client::protocol::ClientShellAgent;
 use herdr_client::{ConnectOptions, ConnectTarget};
 #[cfg(feature = "integration-test")]
 use std::sync::Arc;
@@ -255,11 +254,7 @@ pub(crate) struct HerdrWindow {
     /// once it has none, so a later refusal is announced again.
     pub(crate) version_notice_shown: bool,
     pub(crate) collapsed_repos: std::collections::HashSet<String>,
-    pub(crate) inspector_focus: FocusHandle,
-    pub(crate) last_inspected: Option<ClientShellAgent>,
-    pub(crate) inspector_tab: sidebar::inspector::InspectorTab,
     pub(crate) panel_preset: PanelPreset,
-    pub(crate) agent_live: crate::inspector::live::AgentLive,
     /// Expanded; collapsed leaves the rail or nothing, as Herdr's
     /// `ui.sidebar_collapsed_mode` chooses (see `sidebar_mode`).
     pub(crate) sidebar_visible: bool,
@@ -498,8 +493,6 @@ impl HerdrWindow {
         };
         let old_tab = focused_tab(&self.live);
         self.poll_endpoints(cx);
-        self.remember_inspected();
-        self.poll_agent_live(cx);
         if self
             .icon_font_notice
             .observe(self.config.icon_font_missing, self.live.surface.as_deref())
@@ -872,10 +865,6 @@ impl HerdrWindow {
             install_warning_shown: false,
             version_notice_shown: false,
             collapsed_repos: Default::default(),
-            inspector_focus: cx.focus_handle(),
-            last_inspected: None,
-            agent_live: Default::default(),
-            inspector_tab: Default::default(),
             panel_preset: Default::default(),
             sidebar_visible: true,
             sidebar_start_pending: true,

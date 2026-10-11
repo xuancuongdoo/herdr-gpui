@@ -255,30 +255,6 @@ impl HerdrWindow {
                             }))
                             .text_color(rgb(self.theme.muted))
                             .child("2"),
-                    )
-                    .child(
-                        div()
-                            .id("topbar-panels-3")
-                            .debug_selector(|| "topbar-panels-3".into())
-                            .flex_none()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .w(px(24.))
-                            .h_full()
-                            .rounded(px(crate::config::corners::CONTROL))
-                            .when(self.panel_preset == PanelPreset::All, |style| {
-                                style.bg(rgb(self.theme.active))
-                            })
-                            .cursor_pointer()
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                cx.stop_propagation();
-                                this.panel_preset = PanelPreset::All;
-                                cx.notify();
-                            }))
-                            .text_color(rgb(self.theme.muted))
-                            .child("3"),
                     ),
             )
             .child(
@@ -400,45 +376,6 @@ mod tests {
         });
         assert!(cx.debug_bounds("sidebar").is_some());
         assert!(cx.debug_bounds("terminal").is_none());
-        assert!(cx.debug_bounds("inspector-panel").is_none());
-    }
-
-    #[gpui::test]
-    fn panels_2_shows_tree_and_terminal(cx: &mut TestAppContext) {
-        let (_view, cx) = cx.add_window_view(topbar_window);
-        cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
-        cx.update(|window, cx| {
-            window.refresh();
-            window.draw(cx).clear(cx);
-        });
-        let two = cx.debug_bounds("topbar-panels-2").unwrap();
-        cx.simulate_click(two.center(), Modifiers::default());
-        cx.update(|window, cx| {
-            window.refresh();
-            window.draw(cx).clear(cx);
-        });
-        assert!(cx.debug_bounds("sidebar").is_some());
-        assert!(cx.debug_bounds("terminal").is_some());
-        assert!(cx.debug_bounds("inspector-panel").is_none());
-    }
-
-    #[gpui::test]
-    fn panels_3_shows_all(cx: &mut TestAppContext) {
-        let (_view, cx) = cx.add_window_view(topbar_window);
-        cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
-        cx.update(|window, cx| {
-            window.refresh();
-            window.draw(cx).clear(cx);
-        });
-        let three = cx.debug_bounds("topbar-panels-3").unwrap();
-        cx.simulate_click(three.center(), Modifiers::default());
-        cx.update(|window, cx| {
-            window.refresh();
-            window.draw(cx).clear(cx);
-        });
-        assert!(cx.debug_bounds("sidebar").is_some());
-        assert!(cx.debug_bounds("terminal").is_some());
-        assert!(cx.debug_bounds("inspector-panel").is_some());
     }
 
     fn agent(status: AgentStatus) -> ClientShellAgent {

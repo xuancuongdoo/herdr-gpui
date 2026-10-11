@@ -9,8 +9,6 @@ fn draw(cx: &mut gpui::VisualTestContext) {
 #[gpui::test]
 fn dragging_the_notes_edge_resizes_it_and_a_double_click_resets(cx: &mut gpui::TestAppContext) {
     let (view, cx) = window(cx, None);
-    // Room of the default 1920 px window: the mock inspector takes 240 px more.
-    cx.simulate_resize(gpui::size(px(2160.), px(900.)));
     cx.update(|window, cx| view.update(cx, |view, cx| view.seed_review(changes(), window, cx)));
     draw(cx);
     let panel = cx.debug_bounds("review-notes").unwrap();
@@ -146,8 +144,7 @@ fn a_narrow_review_hides_its_panels_until_asked(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 fn a_wide_review_shows_its_panels_unless_hidden(cx: &mut gpui::TestAppContext) {
     let (view, cx) = window(cx, None);
-    // Room of the old 1600 px window: the mock inspector takes 240 px more.
-    cx.simulate_resize(gpui::size(px(1840.), px(900.)));
+    cx.simulate_resize(gpui::size(px(1600.), px(900.)));
     cx.update(|window, cx| {
         view.update(cx, |view, cx| {
             view.seed_review(changes(), window, cx);

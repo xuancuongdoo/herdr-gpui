@@ -48,7 +48,7 @@ fn click(cx: &mut VisualTestContext, selector: &'static str) {
 }
 
 #[gpui::test]
-fn panels_1_keeps_the_topbar_so_panels_3_brings_everything_back(cx: &mut TestAppContext) {
+fn panels_1_keeps_the_topbar_so_panels_2_brings_the_terminal_back(cx: &mut TestAppContext) {
     let (view, cx) = shared_tabs(cx, &["a", "b"], "tab_bar_position = 'top'");
     click(cx, "topbar-panels-1");
     view.read_with(cx, |view, _| {
@@ -56,17 +56,15 @@ fn panels_1_keeps_the_topbar_so_panels_3_brings_everything_back(cx: &mut TestApp
     });
     assert!(cx.debug_bounds("sidebar").is_some());
     assert!(cx.debug_bounds("terminal").is_none());
-    assert!(cx.debug_bounds("inspector-panel").is_none());
-    for button in ["topbar-panels-1", "topbar-panels-2", "topbar-panels-3"] {
+    for button in ["topbar-panels-1", "topbar-panels-2"] {
         assert!(cx.debug_bounds(button).is_some(), "{button}");
     }
-    click(cx, "topbar-panels-3");
+    click(cx, "topbar-panels-2");
     assert!(cx.debug_bounds("terminal").is_some());
-    assert!(cx.debug_bounds("inspector-panel").is_some());
 }
 
 #[gpui::test]
-fn topbar_right_controls_stay_inside_the_window_beside_the_inspector(cx: &mut TestAppContext) {
+fn topbar_right_controls_stay_inside_the_window(cx: &mut TestAppContext) {
     let (view, cx) = shared_tabs(cx, &["a", "b"], "tab_bar_position = 'top'");
     view.update(cx, |view, _| {
         let snapshot = Arc::make_mut(view.live.snapshot.as_mut().unwrap());
@@ -78,11 +76,7 @@ fn topbar_right_controls_stay_inside_the_window_beside_the_inspector(cx: &mut Te
     draw(cx);
     draw(cx);
     let row = cx.debug_bounds("strip-topbar").unwrap();
-    let inspector = cx.debug_bounds("inspector-panel").unwrap();
-    assert!(
-        row.right() <= inspector.left() + px(0.5),
-        "{row:?} {inspector:?}"
-    );
+    assert!(row.right() <= px(1400.) + px(0.5), "{row:?}");
     for part in ["topbar-panels", "topbar-help", "topbar-settings"] {
         let bounds = cx.debug_bounds(part).unwrap();
         assert!(bounds.left() >= row.left(), "{part} {bounds:?} {row:?}");
