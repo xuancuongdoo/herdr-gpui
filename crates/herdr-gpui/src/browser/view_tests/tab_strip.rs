@@ -7,6 +7,7 @@ fn dragging_a_browser_tab_reorders_the_workspace_s_tabs(cx: &mut gpui::TestAppCo
     use gpui::{Modifiers, MouseButton, point, px};
 
     let (view, cx) = window(cx);
+    view.update(cx, |view, _| view.config.usage.topbar = false);
     cx.simulate_resize(gpui::size(px(1600.), px(600.)));
     let ids = cx.update(|_, cx| {
         let scope = scope(&view.read(cx).endpoints[0]);

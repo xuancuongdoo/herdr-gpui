@@ -17,6 +17,9 @@ use gpui::{prelude::*, *};
 /// moved from it, even when its tabs overflow.
 pub(crate) const DRAG_ROOM: f32 = 40.;
 
+const TOPBAR_MIN: f32 = 360.;
+const TOPBAR_WINDOW: f32 = 1400.;
+
 /// How readily the strip's leading controls give up width: far less than the
 /// tabs, which shrink first, so they only narrow once the tabs have none.
 /// Flex shrinking weighs this by the base width, so it stays negligible next
@@ -238,12 +241,21 @@ impl HerdrWindow {
             .flex()
             .pl(px(DRAG_ROOM))
             .when(ends.trailing && self.config.usage.topbar, |room| {
-                room.child(self.render_topbar(cx))
-                    .child(super::status::render(
-                        &self.live,
-                        &self.config.ui,
-                        &self.theme,
-                    ))
+                let wide = window.viewport_size().width >= px(TOPBAR_WINDOW);
+                room.when(wide, |room| {
+                    room.flex_basis(px(DRAG_ROOM + TOPBAR_MIN))
+                        .flex_shrink(NAVIGATION_SHRINK)
+                        .overflow_hidden()
+                })
+                .child(
+                    self.render_topbar(cx)
+                        .when(wide, |bar| bar.min_w(px(TOPBAR_MIN))),
+                )
+                .child(super::status::render(
+                    &self.live,
+                    &self.config.ui,
+                    &self.theme,
+                ))
             });
         movable(room, window)
     }

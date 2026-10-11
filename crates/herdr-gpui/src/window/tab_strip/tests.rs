@@ -353,6 +353,7 @@ fn four_tabs(
         view.live.snapshot = Some(Arc::new(snapshot));
         view.live.status = crate::state::ConnectionStatus::Connected;
         view.live.supports_tab_move = supports_tab_move;
+        view.config.usage.topbar = false;
         view
     });
     cx.simulate_resize(size(px(1600.), px(600.)));
