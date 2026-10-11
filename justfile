@@ -20,6 +20,27 @@ run-debug *args:
     {{just_executable()}} bundle debug
     exec target/debug/Herdr.app/Contents/MacOS/Herdr {{args}}
 
+# Rebuild, quit only the GUI at dest, swap the bundle in (old one kept in ~/.local/state/herdr/gpui/Herdr.app.prev), relaunch. The daemon keeps its panes.
+reload dest="/Applications/Herdr.app":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{just_executable()}} bundle release
+    trap 'rm -rf "{{dest}}.new"' EXIT
+    rm -rf "{{dest}}.new"
+    ditto target/release/Herdr.app "{{dest}}.new"
+    exe="{{dest}}/Contents/MacOS/Herdr"
+    for pid in $(ps -axo pid=,comm= | awk -v exe="$exe" '{p=$1; sub(/^ *[0-9]+ +/, ""); if ($0 == exe) print p}'); do
+        kill -TERM "$pid" || true
+        for _ in $(seq 100); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+        ! kill -0 "$pid" 2>/dev/null || { echo "Herdr GUI $pid still running after 10s; aborting before swap" >&2; exit 1; }
+    done
+    prev="$HOME/.local/state/herdr/gpui/Herdr.app.prev"
+    mkdir -p "$(dirname "$prev")"
+    rm -rf "$prev"
+    [ ! -e "{{dest}}" ] || mv "{{dest}}" "$prev"
+    mv "{{dest}}.new" "{{dest}}"
+    open "{{dest}}"
+
 format:
     cargo fmt --all
 
