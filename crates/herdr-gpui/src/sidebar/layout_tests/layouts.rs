@@ -280,8 +280,10 @@ fn sidebar_densities_keep_details_and_badges_within_their_rows(cx: &mut gpui::Te
                         "highlight-agent-p0",
                     ),
                 ] {
-                    let show_detail = row == "row-agent-p0"
-                        || (!compact && (comfortable || row != "row-sidebar-child"));
+                    // A tree agent row in the spaces sort is a single line.
+                    let show_detail = row != "row-agent-p0"
+                        && !compact
+                        && (comfortable || row != "row-sidebar-child");
                     let highlight = cx.debug_bounds(highlight).unwrap();
                     let row = cx.debug_bounds(row).unwrap();
                     let name = cx.debug_bounds(name).unwrap();
@@ -306,9 +308,9 @@ fn sidebar_densities_keep_details_and_badges_within_their_rows(cx: &mut gpui::Te
                 let agent = cx.debug_bounds("row-agent-p0").unwrap();
                 assert_eq!(
                     agent.size.height,
-                    px(2. * line + 2. * vertical_padding + spacing)
+                    px(line + 2. * vertical_padding + spacing)
                 );
-                assert!(cx.debug_bounds("detail-agent-p0").is_some());
+                assert!(cx.debug_bounds("detail-agent-p0").is_none());
                 let row = cx.debug_bounds("row-sidebar-child").unwrap();
                 let badge = cx.debug_bounds("pr-sidebar-child").unwrap();
                 assert_eq!(badge.right(), row.right() - px(padding));

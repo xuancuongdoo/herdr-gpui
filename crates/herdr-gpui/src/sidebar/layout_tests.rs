@@ -607,3 +607,12 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         _prefix_interceptor: HerdrWindow::intercept_prefix(window, cx),
     }
 }
+#[cfg(test)]
+pub(crate) fn flat_fixture_window(
+    window: &mut Window,
+    cx: &mut Context<HerdrWindow>,
+) -> HerdrWindow {
+    let mut view = fixture_window(window, cx);
+    view.agent_sort = crate::preferences::AgentSort::Priority;
+    view
+}

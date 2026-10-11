@@ -322,4 +322,11 @@ impl RowLayout for Orca {
             .child(parts::icon(agent.icon.path(), icon, color))
             .child(text.into_div())
     }
+    fn tree_agent(&self, key: &str, state: RowState, content: Div, cx: &RowContext<'_>) -> Div {
+        card(key, state, 0., 4., (cx.theme, cx.mark))
+            .h(px(line_height(cx.font) + 8.))
+            .items_center()
+            .px(px(cx.look.content_x() - MARGIN - BORDER))
+            .child(content)
+    }
 }
