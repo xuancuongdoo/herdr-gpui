@@ -2,6 +2,7 @@
 mod decorations;
 mod navigation;
 mod status;
+pub(crate) mod status_counts;
 mod tabs;
 
 pub(crate) use tabs::{Ends, strip_height};
@@ -239,7 +240,9 @@ impl HerdrWindow {
                     .min_w_0()
                     .h_full()
                     .when(self.config.usage.topbar, |center| {
-                        center.child(status::render(&self.live, &self.config.ui, &self.theme))
+                        center
+                            .child(self.render_topbar(window, cx))
+                            .child(status::render(&self.live, &self.config.ui, &self.theme))
                     }),
             )
             .child(self.titlebar_end(window, cx))
