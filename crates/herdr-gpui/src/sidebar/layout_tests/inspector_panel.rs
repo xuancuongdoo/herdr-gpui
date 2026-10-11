@@ -251,3 +251,22 @@ fn inspector_metrics_tab_shows_the_selected_panes_listing(cx: &mut gpui::TestApp
     assert!(cx.debug_bounds("metric-Agent MEM=35 MB").is_some());
     assert!(cx.debug_bounds("metric-Agent CPU=—").is_none());
 }
+#[gpui::test]
+fn inspector_header_meta_fields_stack_and_width(cx: &mut gpui::TestAppContext) {
+    let (_view, cx) = wide_window(selected_worker_snapshot(), cx);
+    assert!(cx.debug_bounds("inspector-header").is_some());
+    assert!(cx.debug_bounds("inspector-meta").is_some());
+    assert!(cx.debug_bounds("inspector-fields").is_some());
+    let header = cx.debug_bounds("inspector-header").unwrap();
+    let meta = cx.debug_bounds("inspector-meta").unwrap();
+    let fields = cx.debug_bounds("inspector-fields").unwrap();
+    assert!(header.bottom() <= meta.top());
+    assert!(meta.bottom() <= fields.top());
+    let panel = cx.debug_bounds("inspector-panel").unwrap();
+    let expected = (1200f32 * 0.31).clamp(280., 520.);
+    assert_eq!(panel.size.width, px(expected));
+    assert_eq!(
+        panel.size.width,
+        px(crate::inspector::inspector_width(1200.))
+    );
+}
