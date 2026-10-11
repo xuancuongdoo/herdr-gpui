@@ -1,6 +1,8 @@
 //! The sidebar: spaces and agents, the rows that show them, and the hover
 //! menu a resting pointer opens.
 
+#[allow(dead_code)]
+mod agent_metrics;
 mod agents;
 mod cell;
 mod host_row;
