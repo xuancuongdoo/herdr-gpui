@@ -3,6 +3,7 @@
 //! Owns ONLY the right-hand column geometry and the mount point.
 //! Lane sr-inspector owns the panel contents: replace the body of
 //! [`HerdrWindow::inspector_panel`] without changing its signature.
+use crate::sidebar::agent_metrics::HostMetrics;
 use crate::window::HerdrWindow;
 use gpui::{prelude::*, *};
 use herdr_client::protocol::ClientShellAgent;
@@ -40,6 +41,17 @@ impl HerdrWindow {
         if width <= 0. {
             return None;
         }
+        let agent = self.selected_agent_view().or(self.last_inspected.clone());
+        let host = self
+            .selected_host()
+            .and_then(|host| self.system_load.get(&host))
+            .and_then(|reading| reading.latest())
+            .map(|sample| HostMetrics {
+                cpu: sample.cpu,
+                memory_used: sample.memory.map(|memory| memory.used),
+                memory_total: sample.memory.map(|memory| memory.total),
+            })
+            .unwrap_or_default();
         Some(
             div()
                 .id("inspector-panel")
@@ -55,10 +67,10 @@ impl HerdrWindow {
                 .track_focus(&self.inspector_focus)
                 .child(crate::sidebar::inspector::inspector_panel(
                     &self.theme,
-                    self.selected_agent_view()
-                        .or(self.last_inspected.clone())
-                        .as_ref(),
+                    agent.as_ref(),
                     self.inspector_tab,
+                    None,
+                    Some(host),
                     cx,
                 ))
                 .into_any_element(),

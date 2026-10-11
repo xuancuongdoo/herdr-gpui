@@ -222,5 +222,5 @@ fn inspector_metrics_tab_hides_overview_fields(cx: &mut gpui::TestAppContext) {
         assert_eq!(view.read(cx).inspector_tab, InspectorTab::Metrics);
     });
     assert!(cx.debug_bounds("inspector-fields").is_none());
-    assert!(cx.debug_bounds("inspector-empty").is_some());
+    assert!(cx.debug_bounds("inspector-metrics").is_some());
 }
