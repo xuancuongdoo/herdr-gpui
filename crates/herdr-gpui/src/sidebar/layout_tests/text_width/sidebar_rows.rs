@@ -3,8 +3,6 @@
 use super::*;
 use gpui::{MouseButton, MouseDownEvent};
 
-const DEPTH_2_GUIDE_CELLS: f32 = 9.;
-
 pub(super) fn check_text_allocation(cx: &mut gpui::VisualTestContext) {
     cx.simulate_resize(size(px(800.), px(600.)));
     cx.run_until_parked();
@@ -22,35 +20,24 @@ pub(super) fn check_text_allocation(cx: &mut gpui::VisualTestContext) {
                 "glyphs must fit the allocation"
             );
         }
-        // Each part of an agent's line is painted on its own, so the tab can
-        // stay muted beside its workspace.
-        for input in ["herdr", "main", "tab 1", "Claude Code"] {
+        // Each part of a flat row is painted on its own, so the branch can
+        // stay muted beside its workspace. The spaces sort draws an agent as
+        // one tree line: its name alone, with no place line naming its tab.
+        for input in ["herdr", "main", "Claude Code"] {
             let (bounds, rendered, _) = &cx.global::<TextProbes>().0[input];
             assert_eq!(
                 rendered, input,
                 "short label must not ellipsize: {bounds:?}"
             );
         }
-        let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
-        let budget = crate::sidebar::LABEL_WIDTH - DEPTH_2_GUIDE_CELLS * glyph;
-        for (input, bounds_min, text_min) in [
-            (
-                "herdr-gpui-sidebar-rendering-regression-investigation",
-                budget - 1.,
-                budget - glyph - 1.,
-            ),
-            (
-                "fix/sidebar-label-width-and-overflow-regression",
-                150.,
-                150.,
-            ),
+        assert!(!cx.global::<TextProbes>().0.contains_key("tab 1"));
+        for input in [
+            "herdr-gpui-sidebar-rendering-regression-investigation",
+            "fix/sidebar-label-width-and-overflow-regression",
         ] {
             let (bounds, rendered, width) = &cx.global::<TextProbes>().0[input];
-            assert!(bounds.size.width > px(bounds_min));
-            assert!(
-                *width > px(text_min),
-                "long labels must use available width"
-            );
+            assert!(bounds.size.width > px(150.));
+            assert!(*width > px(150.), "long labels must use available width");
             assert_eq!(bounds.size.height, px(16.));
             assert!(
                 rendered.ends_with('\u{2026}'),
@@ -118,18 +105,6 @@ pub(super) fn check_row_geometry(cx: &mut gpui::VisualTestContext) {
             "name-herdr-gpui-sidebar-rendering-regression-investigation",
             "detail-herdr-gpui-sidebar-rendering-regression-investigation",
         ),
-        (
-            "row-agent-p0",
-            "column-agent-p0",
-            "name-agent-p0",
-            "detail-agent-p0",
-        ),
-        (
-            "row-agent-p1",
-            "column-agent-p1",
-            "name-agent-p1",
-            "detail-agent-p1",
-        ),
     ] {
         let row_bounds = cx.debug_bounds(row).unwrap();
         let column_bounds = cx.debug_bounds(column).unwrap();
@@ -138,22 +113,9 @@ pub(super) fn check_row_geometry(cx: &mut gpui::VisualTestContext) {
         eprintln!(
             "{row}: row={row_bounds:?}, column={column_bounds:?}, name={name_bounds:?}, detail={detail_bounds:?}"
         );
-        let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
-        let budget = crate::sidebar::LABEL_WIDTH - DEPTH_2_GUIDE_CELLS * glyph;
-        let (name_min, detail_min) = if row.starts_with("row-agent") {
-            (
-                budget - 1.,
-                budget - crate::sidebar::STATUS_WIDTH - crate::sidebar::LABEL_GAP - 1.,
-            )
-        } else {
-            (150., 150.)
-        };
+        assert!(name_bounds.size.width > px(150.), "{name}: {name_bounds:?}");
         assert!(
-            name_bounds.size.width > px(name_min),
-            "{name}: {name_bounds:?}"
-        );
-        assert!(
-            detail_bounds.size.width > px(detail_min),
+            detail_bounds.size.width > px(150.),
             "{detail}: {detail_bounds:?}"
         );
         assert_eq!(name_bounds.size.height, px(16.), "single-line name");
@@ -165,6 +127,41 @@ pub(super) fn check_row_geometry(cx: &mut gpui::VisualTestContext) {
             row_bounds.bottom() <= sidebar.bottom(),
             "visible initial rows"
         );
+    }
+    let content_right = sidebar.right() - px(12.);
+    for (row, guides, name, detail, text) in [
+        (
+            "row-agent-p0",
+            "tree-agent-p0",
+            "name-agent-p0",
+            "detail-agent-p0",
+            "Claude Code",
+        ),
+        (
+            "row-agent-p1",
+            "tree-agent-p1",
+            "name-agent-p1",
+            "detail-agent-p1",
+            "agent",
+        ),
+    ] {
+        let row = cx.debug_bounds(row).unwrap();
+        let guides = cx.debug_bounds(guides).unwrap();
+        let name = cx.debug_bounds(name).unwrap();
+        assert!(cx.debug_bounds(detail).is_none(), "{detail}");
+        assert_eq!(name.size.height, px(16.), "{text}: single-line name");
+        assert!(
+            row.size.height < name.size.height * 2.,
+            "{text}: one tree line"
+        );
+        assert!(guides.right() < name.left(), "{text}: glyph column");
+        let floor = content_right - name.left();
+        assert!(name.right() <= content_right, "{text}: {name:?}");
+        cx.update(|_, cx| {
+            let (_, rendered, glyphs) = &cx.global::<TextProbes>().0[text];
+            assert!(*glyphs <= floor && rendered == text, "{text}: {rendered:?}");
+            assert!(name.size.width >= *glyphs, "{text}: {name:?}");
+        });
     }
 }
 
