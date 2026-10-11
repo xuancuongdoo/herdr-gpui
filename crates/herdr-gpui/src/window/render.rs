@@ -759,7 +759,9 @@ impl Render for HerdrWindow {
                             .min_w_0()
                             .min_h_0()
                             .relative()
-                            .child(content)
+                            .when(self.panel_preset.show_terminal(), |column| {
+                                column.child(content)
+                            })
                             .children(self.render_notices(cx))
                             .when(self.status_bar_visible, |column| {
                                 column.child(self.render_status_bar(cx))

@@ -23,6 +23,8 @@ mod links;
 pub(crate) use links::PressedLink;
 mod monitors;
 mod mouse;
+mod panel_preset;
+pub(crate) use panel_preset::PanelPreset;
 mod pending_input;
 mod plugin_selection;
 mod prefix;
@@ -237,6 +239,7 @@ pub(crate) struct HerdrWindow {
     pub(crate) inspector_focus: FocusHandle,
     pub(crate) last_inspected: Option<ClientShellAgent>,
     pub(crate) inspector_tab: sidebar::inspector::InspectorTab,
+    pub(crate) panel_preset: PanelPreset,
     /// Expanded; collapsed leaves the rail or nothing, as Herdr's
     /// `ui.sidebar_collapsed_mode` chooses (see `sidebar_mode`).
     pub(crate) sidebar_visible: bool,
@@ -885,6 +888,7 @@ impl HerdrWindow {
             inspector_focus: cx.focus_handle(),
             last_inspected: None,
             inspector_tab: Default::default(),
+            panel_preset: Default::default(),
             sidebar_visible: true,
             sidebar_start_pending: true,
             device_filter: None,
