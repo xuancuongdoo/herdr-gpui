@@ -31,6 +31,60 @@ pub(crate) fn agent_display_name(agent: &ClientShellAgent) -> &str {
     .unwrap_or("agent")
 }
 
+pub(crate) struct DelegationNode<'a> {
+    pub(crate) prefix: &'static str,
+    pub(crate) name: &'a str,
+    pub(crate) status: AgentStatus,
+    pub(crate) current: bool,
+}
+
+fn delegation_node<'a>(
+    prefix: &'static str,
+    agent: &'a ClientShellAgent,
+    current: bool,
+) -> DelegationNode<'a> {
+    DelegationNode {
+        prefix,
+        name: agent_display_name(agent),
+        status: agent.agent_status,
+        current,
+    }
+}
+
+pub(crate) fn delegation_nodes<'a>(
+    agent: &'a ClientShellAgent,
+    agents: &'a [ClientShellAgent],
+) -> Vec<DelegationNode<'a>> {
+    let parent = token(&agent.tokens, "parent").map(|id| {
+        agents.iter().find(|other| other.pane_id == id).map_or(
+            DelegationNode {
+                prefix: "",
+                name: id,
+                status: AgentStatus::Unknown,
+                current: false,
+            },
+            |other| delegation_node("", other, false),
+        )
+    });
+    let children: Vec<_> = agents
+        .iter()
+        .filter(|other| token(&other.tokens, "parent") == Some(agent.pane_id.as_str()))
+        .collect();
+    if parent.is_none() && children.is_empty() {
+        return Vec::new();
+    }
+    let last = children.len().saturating_sub(1);
+    parent
+        .into_iter()
+        .chain([delegation_node("", agent, true)])
+        .chain(
+            children.into_iter().enumerate().map(|(i, child)| {
+                delegation_node(if i == last { "└─ " } else { "├─ " }, child, false)
+            }),
+        )
+        .collect()
+}
+
 fn status_symbol(status: AgentStatus) -> &'static str {
     match status {
         AgentStatus::Idle => "◌",
@@ -301,5 +355,50 @@ mod tests {
         let text = format_started(SystemTime::UNIX_EPOCH);
         assert_eq!(text.len(), 19);
         assert_eq!(&text[4..5], "-");
+    }
+
+    fn linked(pane: &str, name: &str, parent: Option<&str>) -> ClientShellAgent {
+        let tokens = parent
+            .map(|parent| ("parent", parent))
+            .into_iter()
+            .collect();
+        ClientShellAgent {
+            pane_id: pane.to_owned(),
+            name: Some(name.to_owned()),
+            ..agent(tokens, vec![], AgentStatus::Working)
+        }
+    }
+
+    fn graph<'a>(
+        agent: &'a ClientShellAgent,
+        agents: &'a [ClientShellAgent],
+    ) -> Vec<(&'static str, &'a str, bool)> {
+        delegation_nodes(agent, agents)
+            .into_iter()
+            .map(|node| (node.prefix, node.name, node.current))
+            .collect()
+    }
+
+    #[test]
+    fn delegation_graph_links_orchestrator_and_workers() {
+        let agents = [
+            linked("w1:p1", "orch", None),
+            linked("w1:p2", "alpha", Some("w1:p1")),
+            linked("w1:p3", "beta", Some("w1:p1")),
+            linked("w1:p4", "loner", None),
+        ];
+        assert_eq!(
+            graph(&agents[0], &agents),
+            vec![
+                ("", "orch", true),
+                ("├─ ", "alpha", false),
+                ("└─ ", "beta", false)
+            ]
+        );
+        assert_eq!(
+            graph(&agents[1], &agents),
+            vec![("", "orch", false), ("", "alpha", true)]
+        );
+        assert!(graph(&agents[3], &agents).is_empty());
     }
 }
