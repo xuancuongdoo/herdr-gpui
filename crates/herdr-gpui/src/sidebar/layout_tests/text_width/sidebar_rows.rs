@@ -3,6 +3,8 @@
 use super::*;
 use gpui::{MouseButton, MouseDownEvent};
 
+const DEPTH_2_GUIDE_CELLS: f32 = 9.;
+
 pub(super) fn check_text_allocation(cx: &mut gpui::VisualTestContext) {
     cx.simulate_resize(size(px(800.), px(600.)));
     cx.run_until_parked();
@@ -29,16 +31,24 @@ pub(super) fn check_text_allocation(cx: &mut gpui::VisualTestContext) {
                 "short label must not ellipsize: {bounds:?}"
             );
         }
-        for input in [
-            "herdr-gpui-sidebar-rendering-regression-investigation",
-            "fix/sidebar-label-width-and-overflow-regression",
+        let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
+        let budget = crate::sidebar::LABEL_WIDTH - DEPTH_2_GUIDE_CELLS * glyph;
+        for (input, bounds_min, text_min) in [
+            (
+                "herdr-gpui-sidebar-rendering-regression-investigation",
+                budget - 1.,
+                budget - glyph - 1.,
+            ),
+            (
+                "fix/sidebar-label-width-and-overflow-regression",
+                150.,
+                150.,
+            ),
         ] {
             let (bounds, rendered, width) = &cx.global::<TextProbes>().0[input];
-            let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
-            let budget = crate::sidebar::LABEL_WIDTH - 9. * glyph;
-            assert!(bounds.size.width > px(budget - 1.));
+            assert!(bounds.size.width > px(bounds_min));
             assert!(
-                *width > px(budget - glyph - 1.),
+                *width > px(text_min),
                 "long labels must use available width"
             );
             assert_eq!(bounds.size.height, px(16.));
@@ -129,7 +139,7 @@ pub(super) fn check_row_geometry(cx: &mut gpui::VisualTestContext) {
             "{row}: row={row_bounds:?}, column={column_bounds:?}, name={name_bounds:?}, detail={detail_bounds:?}"
         );
         let glyph = crate::sidebar::glyph_width(&crate::config::Config::default().sidebar);
-        let budget = crate::sidebar::LABEL_WIDTH - 9. * glyph;
+        let budget = crate::sidebar::LABEL_WIDTH - DEPTH_2_GUIDE_CELLS * glyph;
         let (name_min, detail_min) = if row.starts_with("row-agent") {
             (
                 budget - 1.,

@@ -193,8 +193,8 @@ pub(crate) fn group_element_id(
 /// Width budget for one tree agent row, split from the element builder so the
 /// 160px truncation guard is unit-testable without a window.
 ///
-/// Guides are fixed chrome: the full indent always paints, even when the
-/// label has to shrink to nothing. Only the name/suffix pool and the
+/// Guides are trimmed only when the row is narrower than the status floor;
+/// otherwise the full indent paints. Only the name/suffix pool and the
 /// right-column state word absorb a shortage; the state word is dropped
 /// entirely when it cannot fit in full with a one-glyph gap before it,
 /// because the status glyph already carries it. The gap lives inside the
@@ -208,7 +208,7 @@ pub(crate) fn tree_agent_widths(
     right: &str,
     glyph_w: f32,
 ) -> (f32, f32, f32, f32, f32) {
-    // Never capped, never reclaimed: squeezing the guides painted `…` over
+    // Trimmed only below the status floor, never squeezed: that painted `…` over
     // them and shifted rows left past their depth at 160px.
     let guides_w = prefix_width.clamp(0., content);
     let glyph_need = (glyph.width().max(1) + 1) as f32 * glyph_w;
