@@ -186,6 +186,50 @@ impl HerdrWindow {
                             .child("⌘K"),
                     ),
             )
+            .child(
+                div()
+                    .id("topbar-help")
+                    .debug_selector(|| "topbar-help".into())
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .h(px(24.))
+                    .px(px(8.))
+                    .rounded(px(crate::config::corners::CONTROL))
+                    .cursor_pointer()
+                    .hover(|style| style.bg(rgb(self.theme.active)))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        cx.stop_propagation();
+                        this.command(Command::Keybinds, window, cx);
+                    }))
+                    .text_color(rgb(self.theme.muted))
+                    .child("? Help"),
+            )
+            .child(
+                div()
+                    .id("topbar-settings")
+                    .debug_selector(|| "topbar-settings".into())
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .justify_center()
+                    .size(px(28.))
+                    .rounded(px(crate::config::corners::CONTROL))
+                    .cursor_pointer()
+                    .hover(|style| style.bg(rgb(self.theme.active)))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        cx.stop_propagation();
+                        this.command(Command::Settings, window, cx);
+                    }))
+                    .child(
+                        svg()
+                            .path("icons/settings.svg")
+                            .size(px(14.))
+                            .text_color(rgb(self.theme.muted)),
+                    ),
+            )
     }
 }
 
@@ -207,6 +251,57 @@ mod tests {
         });
         let search = cx.debug_bounds("topbar-search").unwrap();
         cx.simulate_click(search.center(), Modifiers::default());
+        view.read_with(cx, |view, _| {
+            assert!(view.menu.page == Some(crate::menu::Page::Palette));
+        });
+    }
+
+    #[gpui::test]
+    fn help_button_opens_keybinds(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(topbar_window);
+        cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+        let help = cx.debug_bounds("topbar-help").unwrap();
+        cx.simulate_click(help.center(), Modifiers::default());
+        view.read_with(cx, |view, _| {
+            assert!(view.menu.page == Some(crate::menu::Page::Keybinds));
+        });
+    }
+
+    #[gpui::test]
+    fn gear_button_opens_settings(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(topbar_window);
+        cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+        assert_eq!(cx.windows().len(), 1);
+        let gear = cx.debug_bounds("topbar-settings").unwrap();
+        cx.simulate_click(gear.center(), Modifiers::default());
+        cx.run_until_parked();
+        assert_eq!(cx.windows().len(), 2);
+        view.read_with(cx, |view, _| {
+            assert!(view.menu.page.is_none());
+        });
+    }
+
+    #[gpui::test]
+    fn cmd_k_opens_the_palette(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(topbar_window);
+        cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+        cx.simulate_keystrokes("cmd-k");
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
         view.read_with(cx, |view, _| {
             assert!(view.menu.page == Some(crate::menu::Page::Palette));
         });

@@ -2631,7 +2631,7 @@ records when reporting the failure.
   to move by word. A value is a key a terminal can receive (`ctrl-a`,
   `home`, `alt-b`, `shift-enter`), and an empty string removes a default. A
   pane key takes its keystroke from a default or daemon command, so
-  `"cmd-k" = "ctrl-l"` replaces Clear; listing it under `[keybindings]` as well
+  `"cmd-k" = "ctrl-l"` replaces the palette's ⌘K; listing it under `[keybindings]` as well
   rejects the config, as do a bare character, an unknown key, or a target with
   cmd. The find field and dialogs answer Cmd-Left, Cmd-Right, Cmd-Backspace,
   and Cmd-Delete themselves.
