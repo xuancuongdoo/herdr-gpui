@@ -9,7 +9,7 @@ pub(crate) struct InspectorField {
     pub(crate) value: String,
 }
 
-fn token<'a>(tokens: &'a [(String, String)], key: &str) -> Option<&'a str> {
+pub(crate) fn token<'a>(tokens: &'a [(String, String)], key: &str) -> Option<&'a str> {
     tokens
         .iter()
         .find(|(k, _)| k == key)
@@ -17,7 +17,7 @@ fn token<'a>(tokens: &'a [(String, String)], key: &str) -> Option<&'a str> {
         .filter(|v| !v.is_empty())
 }
 
-fn agent_display_name(agent: &ClientShellAgent) -> &str {
+pub(crate) fn agent_display_name(agent: &ClientShellAgent) -> &str {
     [
         agent.display_agent.as_deref(),
         agent.name.as_deref(),
@@ -41,7 +41,7 @@ fn status_symbol(status: AgentStatus) -> &'static str {
     }
 }
 
-fn status_word(status: AgentStatus) -> &'static str {
+pub(crate) fn status_word(status: AgentStatus) -> &'static str {
     match status {
         AgentStatus::Idle => "idle",
         AgentStatus::Working => "working",
@@ -120,10 +120,60 @@ pub(crate) fn inspector_fields(agent: Option<&ClientShellAgent>) -> Vec<Inspecto
     out
 }
 
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant, SystemTime};
+
+static FIRST_SEEN: LazyLock<Mutex<HashMap<String, (Instant, SystemTime)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Client first-seen time per pane: the mock's elapsed and Started source.
+pub(crate) fn first_seen(pane_id: &str) -> (Instant, SystemTime) {
+    let mut map = FIRST_SEEN
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *map.entry(pane_id.to_owned())
+        .or_insert_with(|| (Instant::now(), SystemTime::now()))
+}
+
+/// Mock short alias: `claude-opus-5-5` renders `opus-5.5`.
+pub(crate) fn short_model(model: &str) -> String {
+    let trimmed = model.trim();
+    let bare = trimmed.strip_prefix("claude-").unwrap_or(trimmed);
+    let parts: Vec<&str> = bare.split('-').collect();
+    if parts.len() >= 3 {
+        let (major, minor) = (parts[parts.len() - 2], parts[parts.len() - 1]);
+        let numeric = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit());
+        if numeric(major) && numeric(minor) {
+            return format!("{}-{major}.{minor}", parts[..parts.len() - 2].join("-"));
+        }
+    }
+    bare.to_owned()
+}
+
+pub(crate) fn format_elapsed(elapsed: Duration) -> String {
+    let secs = elapsed.as_secs();
+    if secs < 60 {
+        return format!("{secs}s");
+    }
+    let mins = secs / 60;
+    if mins < 60 {
+        return format!("{mins}m");
+    }
+    format!("{}h {}m", mins / 60, mins % 60)
+}
+
+pub(crate) fn format_started(started: SystemTime) -> String {
+    chrono::DateTime::<chrono::Local>::from(started)
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use herdr_client::protocol::AgentStatus;
+    use std::time::{Duration, SystemTime};
 
     fn agent(
         tokens: Vec<(&str, &str)>,
@@ -230,5 +280,26 @@ mod tests {
                 ("Pane", "p1"),
             ]
         );
+    }
+    #[test]
+    fn short_model_aliases() {
+        assert_eq!(short_model("claude-opus-5-5"), "opus-5.5");
+        assert_eq!(short_model("opus-5.5"), "opus-5.5");
+        assert_eq!(short_model("muse-spark-1.3"), "muse-spark-1.3");
+        assert_eq!(short_model("sonnet"), "sonnet");
+    }
+
+    #[test]
+    fn elapsed_formats() {
+        assert_eq!(format_elapsed(Duration::from_secs(12)), "12s");
+        assert_eq!(format_elapsed(Duration::from_secs(120)), "2m");
+        assert_eq!(format_elapsed(Duration::from_secs(3700)), "1h 1m");
+    }
+
+    #[test]
+    fn started_renders_timestamp() {
+        let text = format_started(SystemTime::UNIX_EPOCH);
+        assert_eq!(text.len(), 19);
+        assert_eq!(&text[4..5], "-");
     }
 }

@@ -6,7 +6,8 @@
 use crate::window::HerdrWindow;
 use gpui::{prelude::*, *};
 use herdr_client::protocol::ClientShellAgent;
-/// Fixed width of the right-hand inspector column.
+/// Floor of the inspector width: the mount takes ~31% of the window,
+/// clamped to `INSPECTOR_WIDTH`–520 px.
 pub(crate) const INSPECTOR_WIDTH: f32 = 280.;
 /// Window narrower than this hides the inspector first (sidebar pattern).
 pub(crate) const INSPECTOR_MIN_WINDOW_WIDTH: f32 = 960.;
@@ -27,7 +28,9 @@ impl HerdrWindow {
         }
         // Same terminal reserve the sidebar keeps, so a mid-size window never
         // loses its terminal to the inspector.
-        let width = INSPECTOR_WIDTH.min((window_width - 240.).max(0.));
+        let width = (window_width * 0.31)
+            .clamp(INSPECTOR_WIDTH, 520.)
+            .min((window_width - 240.).max(0.));
         if width <= 0. {
             return None;
         }
@@ -45,6 +48,7 @@ impl HerdrWindow {
                 .border_color(rgb(self.theme.active))
                 .track_focus(&self.inspector_focus)
                 .child(crate::sidebar::inspector::inspector_panel(
+                    &self.theme,
                     self.selected_agent_view()
                         .or(self.last_inspected.clone())
                         .as_ref(),
