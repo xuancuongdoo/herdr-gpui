@@ -7,6 +7,9 @@
 //! `render_inspector_sections` is the WP5 call site for the sections below
 //! the fields.
 
+use super::agent_metrics::{
+    AgentMetrics, FirstSeen, HostMetrics, MetricKind, metric_rows, metrics_for_pane,
+};
 use super::inspector_fields::{
     InspectorField, agent_display_name, first_seen, format_elapsed, format_started,
     inspector_fields, short_model, status_word,
@@ -14,8 +17,11 @@ use super::inspector_fields::{
 use super::tree::model::is_orchestrator_role;
 use crate::HerdrWindow;
 use crate::config::Theme;
+use crate::processes::Listing;
 use gpui::{prelude::*, *};
 use herdr_client::protocol::{AgentStatus, ClientShellAgent};
+use std::collections::HashMap;
+use std::time::Instant;
 
 const ACCENT_BLUE: u32 = 0x0078E8;
 const LINK_BLUE: u32 = 0x0098F8;
@@ -135,6 +141,65 @@ fn field_value<'a>(rows: &'a [InspectorField], label: &str) -> &'a str {
         .map(|row| row.value.as_str())
         .unwrap_or("—")
 }
+const METRIC_BAR_WIDTH: f32 = 96.;
+fn metric_bar(fill: Option<f32>, color: u32, theme: &Theme) -> Div {
+    div()
+        .w(px(METRIC_BAR_WIDTH))
+        .h(px(5.))
+        .flex_none()
+        .rounded_full()
+        .overflow_hidden()
+        .bg(rgb(theme.active))
+        .child(
+            div()
+                .h_full()
+                .w(px(METRIC_BAR_WIDTH * fill.unwrap_or(0.)))
+                .rounded_full()
+                .bg(rgb(color)),
+        )
+}
+fn metrics_section(
+    metrics: Option<&AgentMetrics>,
+    host: &HostMetrics,
+    theme: &Theme,
+) -> impl IntoElement {
+    div()
+        .id("inspector-metrics")
+        .debug_selector(|| "inspector-metrics".into())
+        .flex()
+        .flex_col()
+        .gap_1()
+        .children(metric_rows(metrics, host).into_iter().map(|row| {
+            let color = match row.kind {
+                MetricKind::Cpu => ACCENT_BLUE,
+                MetricKind::Mem => IDLE_GREEN,
+                MetricKind::Elapsed => UNKNOWN_GREY,
+            };
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(
+                    div()
+                        .flex_none()
+                        .w_20()
+                        .overflow_hidden()
+                        .text_xs()
+                        .text_color(rgb(theme.muted))
+                        .child(row.label.to_owned()),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_xs()
+                        .child(row.value),
+                )
+                .child(metric_bar(row.fill, color, theme))
+        }))
+}
 
 /// WP5 call site: delegation, events and context sections plug in here.
 pub(crate) fn render_inspector_sections(_agent: Option<&ClientShellAgent>) {}
@@ -143,6 +208,8 @@ pub(crate) fn inspector_panel(
     theme: &Theme,
     agent: Option<&ClientShellAgent>,
     selected: InspectorTab,
+    processes: Option<(&HashMap<String, Listing>, &FirstSeen)>,
+    host: Option<HostMetrics>,
     cx: &mut Context<HerdrWindow>,
 ) -> impl IntoElement {
     let muted = theme.muted;
@@ -232,6 +299,16 @@ pub(crate) fn inspector_panel(
                 .child(meta_item("—".to_owned(), muted))
                 .child(meta_item(elapsed.clone(), muted)),
         );
+    if selected == InspectorTab::Metrics {
+        let agent_metrics = processes.and_then(|(listings, seen)| {
+            metrics_for_pane(&agent.pane_id, listings, seen, Instant::now())
+        });
+        return panel.child(metrics_section(
+            agent_metrics.as_ref(),
+            &host.unwrap_or_default(),
+            theme,
+        ));
+    }
     if selected != InspectorTab::Overview {
         return panel.child(
             div()

@@ -3,7 +3,7 @@ use gpui::{prelude::*, *};
 use herdr_client::{Method, protocol::ClientShellSnapshot};
 use serde_json::{Value, json};
 
-mod processes;
+pub(crate) mod processes;
 
 #[cfg(test)]
 pub(crate) mod tests;
