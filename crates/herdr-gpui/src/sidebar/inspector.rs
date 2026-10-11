@@ -193,6 +193,7 @@ fn metrics_section(
                     div()
                         .flex_1()
                         .min_w_0()
+                        .debug_selector(|| format!("metric-{}={}", row.label, row.value))
                         .truncate()
                         .text_xs()
                         .child(row.value),

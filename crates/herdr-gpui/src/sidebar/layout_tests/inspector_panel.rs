@@ -224,3 +224,30 @@ fn inspector_metrics_tab_hides_overview_fields(cx: &mut gpui::TestAppContext) {
     assert!(cx.debug_bounds("inspector-fields").is_none());
     assert!(cx.debug_bounds("inspector-metrics").is_some());
 }
+
+#[gpui::test]
+fn inspector_metrics_tab_shows_the_selected_panes_listing(cx: &mut gpui::TestAppContext) {
+    use crate::processes::Listing;
+    use crate::sidebar::inspector::InspectorTab;
+    let (view, cx) = wide_window(selected_worker_snapshot(), cx);
+    view.update(cx, |view, cx| {
+        view.inspector_tab = InspectorTab::Metrics;
+        view.agent_live.listings.insert(
+            "p1".into(),
+            Listing {
+                cpu: 10.,
+                memory: 35 << 20,
+                ..Default::default()
+            },
+        );
+        cx.notify();
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        window.refresh();
+        full_draw(window, cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("metric-Agent CPU=10%").is_some());
+    assert!(cx.debug_bounds("metric-Agent MEM=35 MB").is_some());
+    assert!(cx.debug_bounds("metric-Agent CPU=—").is_none());
+}

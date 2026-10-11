@@ -7,6 +7,7 @@ use crate::sidebar::agent_metrics::HostMetrics;
 use crate::window::HerdrWindow;
 use gpui::{prelude::*, *};
 use herdr_client::protocol::ClientShellAgent;
+pub(crate) mod live;
 /// Floor of the inspector width: the mount takes ~31% of the window,
 /// clamped to `INSPECTOR_WIDTH`–520 px.
 pub(crate) const INSPECTOR_WIDTH: f32 = 280.;
@@ -69,7 +70,7 @@ impl HerdrWindow {
                     &self.theme,
                     agent.as_ref(),
                     self.inspector_tab,
-                    None,
+                    Some((&self.agent_live.listings, &self.agent_live.first_seen)),
                     Some(host),
                     cx,
                 ))

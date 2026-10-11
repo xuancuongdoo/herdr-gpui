@@ -93,9 +93,11 @@ pub(crate) struct FirstSeen {
 }
 
 impl FirstSeen {
-    #[cfg(test)]
     pub(crate) fn mark(&mut self, pane_id: &str, now: Instant) {
-        self.seen.entry(pane_id.to_owned()).or_insert(now);
+        if self.seen.contains_key(pane_id) {
+            return;
+        }
+        self.seen.insert(pane_id.to_owned(), now);
     }
 
     pub(crate) fn elapsed(&self, pane_id: &str, now: Instant) -> Duration {
