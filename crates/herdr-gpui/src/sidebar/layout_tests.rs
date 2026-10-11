@@ -555,6 +555,7 @@ pub(crate) fn fixture_window(window: &mut Window, cx: &mut Context<HerdrWindow>)
         inspector_focus: cx.focus_handle(),
         last_inspected: None,
         inspector_tab: Default::default(),
+        panel_preset: Default::default(),
         wheel: WheelAccumulator::default(),
         sidebar_width: None,
         sidebar_drag: None,

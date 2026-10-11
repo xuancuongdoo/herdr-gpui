@@ -241,7 +241,7 @@ impl HerdrWindow {
                     .h_full()
                     .when(self.config.usage.topbar, |center| {
                         center
-                            .child(self.render_topbar(window, cx))
+                            .child(self.render_topbar(cx).flex_1())
                             .child(status::render(&self.live, &self.config.ui, &self.theme))
                     }),
             )

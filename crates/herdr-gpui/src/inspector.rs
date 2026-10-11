@@ -30,6 +30,9 @@ impl HerdrWindow {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
+        if !self.panel_preset.show_inspector() {
+            return None;
+        }
         let window_width = f32::from(window.viewport_size().width);
         if window_width < INSPECTOR_MIN_WINDOW_WIDTH {
             return None;
