@@ -289,25 +289,6 @@ mod tests {
         });
     }
 
-    #[gpui::test]
-    fn cmd_k_opens_the_palette(cx: &mut TestAppContext) {
-        let (view, cx) = cx.add_window_view(topbar_window);
-        cx.simulate_resize(gpui::size(gpui::px(1200.), gpui::px(600.)));
-        cx.update(|window, cx| {
-            crate::bind_keys(cx);
-            window.focus(&view.read(cx).focus.clone(), cx);
-            window.refresh();
-            window.draw(cx).clear(cx);
-        });
-        cx.simulate_keystrokes("cmd-k");
-        cx.update(|window, cx| {
-            window.refresh();
-            window.draw(cx).clear(cx);
-        });
-        view.read_with(cx, |view, _| {
-            assert!(view.menu.page == Some(crate::menu::Page::Palette));
-        });
-    }
     fn agent(status: AgentStatus) -> ClientShellAgent {
         ClientShellAgent {
             pane_id: "p1".into(),

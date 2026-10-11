@@ -388,7 +388,7 @@ pub const COMMANDS: &[CommandInfo] = &[
         command: Command::ClearPane,
         name: "clear_pane",
         label: "Clear Pane",
-        shortcuts: &[],
+        shortcuts: &["cmd-k"],
     },
     CommandInfo {
         command: Command::Find,
@@ -628,7 +628,7 @@ pub const COMMANDS: &[CommandInfo] = &[
         command: Command::Palette,
         name: "command_palette",
         label: "Command Palette",
-        shortcuts: &["cmd-shift-p", "cmd-k"],
+        shortcuts: &["cmd-shift-p"],
     },
     CommandInfo {
         command: Command::GoToSymbol,
