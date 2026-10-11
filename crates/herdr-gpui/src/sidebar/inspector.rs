@@ -12,6 +12,7 @@ use super::inspector_fields::{
     inspector_fields, short_model, status_word,
 };
 use super::tree::model::is_orchestrator_role;
+use crate::HerdrWindow;
 use crate::config::Theme;
 use gpui::{prelude::*, *};
 use herdr_client::protocol::{AgentStatus, ClientShellAgent};
@@ -24,6 +25,68 @@ const BLOCKED_RED: u32 = 0xF02838;
 const ORCHESTRATOR_PURPLE: u32 = 0x9850F8;
 const WORKER_GREEN: u32 = 0x00C878;
 const UNKNOWN_GREY: u32 = 0x8A90B8;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum InspectorTab {
+    #[default]
+    Overview,
+    Context,
+    Budget,
+    Config,
+    Metrics,
+}
+impl InspectorTab {
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Overview,
+        Self::Context,
+        Self::Budget,
+        Self::Config,
+        Self::Metrics,
+    ];
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Overview => "Overview",
+            Self::Context => "Context",
+            Self::Budget => "Budget",
+            Self::Config => "Config",
+            Self::Metrics => "Metrics",
+        }
+    }
+}
+fn tab_strip(
+    selected: InspectorTab,
+    theme: &Theme,
+    cx: &mut Context<HerdrWindow>,
+) -> impl IntoElement {
+    div()
+        .id("inspector-tabs")
+        .debug_selector(|| "inspector-tabs".into())
+        .flex()
+        .flex_row()
+        .flex_wrap()
+        .gap_1()
+        .children(InspectorTab::ALL.into_iter().map(|tab| {
+            let label = tab.label();
+            div()
+                .id(("inspector-tab", tab as usize))
+                .debug_selector(move || format!("inspector-tab-{label}"))
+                .px_1()
+                .py(px(2.))
+                .rounded_md()
+                .cursor_pointer()
+                .text_xs()
+                .text_color(rgb(if selected == tab {
+                    ACCENT_BLUE
+                } else {
+                    theme.muted
+                }))
+                .when(selected == tab, |el| el.bg(rgb(theme.active)))
+                .child(label.to_owned())
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.inspector_tab = tab;
+                    cx.notify();
+                }))
+        }))
+}
 
 fn status_color(status: AgentStatus) -> u32 {
     match status {
@@ -76,8 +139,12 @@ fn field_value<'a>(rows: &'a [InspectorField], label: &str) -> &'a str {
 /// WP5 call site: delegation, events and context sections plug in here.
 pub(crate) fn render_inspector_sections(_agent: Option<&ClientShellAgent>) {}
 
-/// Pure panel content: `agent` is already the selected-or-last-known agent.
-pub(crate) fn inspector_panel(theme: &Theme, agent: Option<&ClientShellAgent>) -> impl IntoElement {
+pub(crate) fn inspector_panel(
+    theme: &Theme,
+    agent: Option<&ClientShellAgent>,
+    selected: InspectorTab,
+    cx: &mut Context<HerdrWindow>,
+) -> impl IntoElement {
     let muted = theme.muted;
     let mut panel = div()
         .id("inspector")
@@ -86,7 +153,8 @@ pub(crate) fn inspector_panel(theme: &Theme, agent: Option<&ClientShellAgent>) -
         .gap_2()
         .p_2()
         .overflow_y_scroll()
-        .child(div().text_sm().child("Inspector".to_owned()));
+        .child(div().text_sm().child("Inspector".to_owned()))
+        .child(tab_strip(selected, theme, cx));
     let Some(agent) = agent else {
         return panel.child(field("Agent", "—".to_owned(), muted));
     };
@@ -164,6 +232,23 @@ pub(crate) fn inspector_panel(theme: &Theme, agent: Option<&ClientShellAgent>) -
                 .child(meta_item("—".to_owned(), muted))
                 .child(meta_item(elapsed.clone(), muted)),
         );
+    if selected != InspectorTab::Overview {
+        return panel.child(
+            div()
+                .id("inspector-empty")
+                .debug_selector(|| "inspector-empty".into())
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(div().text_xs().text_color(rgb(muted)).child("—".to_owned()))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(rgb(muted))
+                        .child("No data".to_owned()),
+                ),
+        );
+    }
     let workspace = field_value(&rows, "Workspace");
     panel = panel.child(
         div()

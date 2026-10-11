@@ -28,7 +28,7 @@ impl HerdrWindow {
     pub(crate) fn inspector_panel(
         &self,
         window: &Window,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let window_width = f32::from(window.viewport_size().width);
         if window_width < INSPECTOR_MIN_WINDOW_WIDTH {
@@ -58,6 +58,8 @@ impl HerdrWindow {
                     self.selected_agent_view()
                         .or(self.last_inspected.clone())
                         .as_ref(),
+                    self.inspector_tab,
+                    cx,
                 ))
                 .into_any_element(),
         )
